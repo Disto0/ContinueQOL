@@ -1453,6 +1453,12 @@ export interface ContinueUIConfig {
   codeWrap?: boolean;
   showSessionTabs?: boolean;
   continueAfterToolRejection?: boolean;
+  /**
+   * Controls which sessions are shown in the history list.
+   * - "global" (default): show sessions from all projects/workspaces.
+   * - "local": only show sessions belonging to the currently open workspace(s).
+   */
+  historyScope?: "global" | "local";
 }
 
 export interface ContextMenuConfig {

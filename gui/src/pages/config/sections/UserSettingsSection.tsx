@@ -48,6 +48,7 @@ export function UserSettingsSection() {
 
   // TODO defaults are in multiple places, should be consolidated and probably not explicit here
   const showSessionTabs = config.ui?.showSessionTabs ?? false;
+  const historyScope = config.ui?.historyScope ?? "global";
   const continueAfterToolRejection =
     config.ui?.continueAfterToolRejection ?? false;
   const codeWrap = config.ui?.codeWrap ?? false;
@@ -101,6 +102,19 @@ export function UserSettingsSection() {
                   description="Displays tabs above the chat as an alternative way to organize and access your sessions."
                   value={showSessionTabs}
                   onChange={(value) => handleUpdate({ showSessionTabs: value })}
+                />
+                <UserSetting
+                  type="select"
+                  title="History Scope"
+                  description="Global shows sessions from all projects; Local only shows sessions from the currently open workspace."
+                  value={historyScope}
+                  onChange={(value) =>
+                    handleUpdate({ historyScope: value as "global" | "local" })
+                  }
+                  options={[
+                    { label: "Global", value: "global" },
+                    { label: "Local", value: "local" },
+                  ]}
                 />
                 <UserSetting
                   type="toggle"

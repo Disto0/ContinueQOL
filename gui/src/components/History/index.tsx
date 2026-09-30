@@ -1,4 +1,5 @@
 import { BaseSessionMetadata } from "core";
+import * as URI from "uri-js";
 import MiniSearch from "minisearch";
 import React, {
   Fragment,
@@ -48,12 +49,65 @@ export function History() {
   const isSessionMetadataLoading = useAppSelector(
     (state) => state.session.isSessionMetadataLoading,
   );
+  const historyScope =
+    useAppSelector((state) => state.config.config.ui?.historyScope) ?? "global";
+
+  // In "local" scope, only keep sessions that belong to the currently open
+  // workspace(s). Both `session.workspaceDirectory` and
+  // `window.workspacePaths` hold file:// URIs, so we compare their decoded
+  // URI path segments directly (no native-path conversion, which is unreliable
+  // across OSes).
+  const workspacePaths = window.workspacePaths ?? [];
+  const workspaceUriPaths = useMemo(
+    () =>
+      workspacePaths
+        .map((uri) => {
+          try {
+            const path = (URI.parse(uri).path ?? "").replace(/^\//, "");
+            return path
+              .split("/")
+              .map((part) => decodeURIComponent(part))
+              .join("/");
+          } catch {
+            return "";
+          }
+        })
+        .filter((p) => p.length > 0),
+    [workspacePaths],
+  );
+
+  const visibleSessionMetadata = useMemo(() => {
+    if (historyScope !== "local") {
+      return allSessionMetadata;
+    }
+    return allSessionMetadata.filter((session) => {
+      const dir = session.workspaceDirectory ?? "";
+      if (!dir) {
+        return false;
+      }
+      let dirPath = dir;
+      if (dir.startsWith("file://")) {
+        try {
+          dirPath = (URI.parse(dir).path ?? "").replace(/^\//, "");
+        } catch {
+          return false;
+        }
+      }
+      const dirSegments = dirPath
+        .split("/")
+        .map((part) => decodeURIComponent(part))
+        .join("/");
+      return workspaceUriPaths.some(
+        (ws) => dirSegments === ws || dirSegments.startsWith(ws + "/"),
+      );
+    });
+  }, [allSessionMetadata, historyScope, workspaceUriPaths]);
 
   useEffect(() => {
     try {
       minisearch.removeAll();
       minisearch.addAll(
-        allSessionMetadata.map((session) => ({
+        visibleSessionMetadata.map((session) => ({
           title: session.title,
           sessionId: session.sessionId,
           id: session.sessionId,
@@ -62,7 +116,7 @@ export function History() {
     } catch (e) {
       console.log("error adding sessions to minisearch", e);
     }
-  }, [allSessionMetadata]);
+  }, [visibleSessionMetadata]);
 
   const platform = useMemo(() => getPlatform(), []);
 
@@ -104,7 +158,7 @@ export function History() {
       .sort((a, b) => b.priority - a.priority || b.score - a.score)
       .map((result) => result.id);
 
-    return allSessionMetadata
+    return visibleSessionMetadata
       .filter((session) => {
         return searchTerm === "" || sessionIds.includes(session.sessionId);
       })
@@ -113,7 +167,7 @@ export function History() {
           parseDate(b.dateCreated).getTime() -
           parseDate(a.dateCreated).getTime(),
       );
-  }, [allSessionMetadata, searchTerm, minisearch]);
+  }, [visibleSessionMetadata, searchTerm, minisearch]);
 
   const sessionGroups = useMemo(() => {
     return groupSessionsByDate(filteredAndSortedSessions);
@@ -217,12 +271,13 @@ export function History() {
           className="text-description text-2xs"
           data-testid="history-sessions-note"
         >
-          Chat history is saved to{" "}
-          <span className="italic">
-            {platform === "windows"
-              ? "%USERPROFILE%/.continue"
-              : "~/.continue/sessions"}
-          </span>
+          {historyScope === "local"
+            ? "Showing sessions for the current workspace only."
+            : `Chat history is saved to ${
+                platform === "windows"
+                  ? "%USERPROFILE%/.continue"
+                  : "~/.continue/sessions"
+              }`}
         </span>
       </div>
     </div>
