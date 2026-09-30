@@ -30,7 +30,7 @@ This is a personal fork of [Continue](https://github.com/continuedev/continue), 
 
 ### Changelog
 
-#### 1.4.0-preview.1
+#### 1.4.0-preview.2
 
 Based on upstream `continuedev/continue` (package version 1.3.40).
 
@@ -104,7 +104,7 @@ npm run package
 ## How to install
 
 ```powershell
-code --install-extension extensions/vscode/build/continue-1.4.0-preview.1.vsix
+code --install-extension extensions/vscode/build/continue-1.4.0-preview.2.vsix
 ```
 
 ## Dev mode
