@@ -33,6 +33,7 @@ export const sharedConfigSchema = z
     showChatScrollbar: z.boolean(),
     continueAfterToolRejection: z.boolean(),
     historyScope: z.enum(["global", "local"]),
+    sessionTabsScope: z.enum(["global", "local"]),
 
     // `tabAutocompleteOptions` in `ContinueConfig`
     useAutocompleteCache: z.boolean(),
@@ -142,6 +143,9 @@ export function modifyAnyConfigWithSharedConfig<
   }
   if (sharedConfig.historyScope !== undefined) {
     configCopy.ui.historyScope = sharedConfig.historyScope;
+  }
+  if (sharedConfig.sessionTabsScope !== undefined) {
+    configCopy.ui.sessionTabsScope = sharedConfig.sessionTabsScope;
   }
 
   if (sharedConfig.allowAnonymousTelemetry !== undefined) {

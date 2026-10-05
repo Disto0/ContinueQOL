@@ -111,6 +111,15 @@ export function getSessionsListPath(): string {
   return filepath;
 }
 
+/**
+ * Single global file holding open session tabs, keyed by scope:
+ *   { "global": SessionTab[], "<workspaceKey>": SessionTab[] }
+ * Used for both global and per-workspace (local) tab scopes.
+ */
+export function getTabsFilePath(): string {
+  return path.join(getContinueGlobalPath(), "tabs.json");
+}
+
 export function getConfigJsonPath(): string {
   const p = path.join(getContinueGlobalPath(), "config.json");
   return p;

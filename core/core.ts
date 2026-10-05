@@ -25,6 +25,7 @@ import { compactConversation } from "./util/conversationCompaction";
 import { GlobalContext } from "./util/GlobalContext";
 import historyManager from "./util/history";
 import { editConfigFile, migrateV1DevDataFiles } from "./util/paths";
+import tabsManager from "./util/tabs";
 
 import {
   isProcessBackgrounded,
@@ -329,6 +330,15 @@ export class Core {
 
     on("history/clear", (msg) => {
       historyManager.clearAll();
+    });
+
+    // Session tabs (persisted open tabs, keyed by global/workspace scope)
+    on("tabs/load", (msg) => {
+      return { tabs: tabsManager.load(msg.data.key) };
+    });
+
+    on("tabs/save", (msg) => {
+      tabsManager.save(msg.data.key, msg.data.tabs);
     });
 
     on("devdata/log", async (msg) => {

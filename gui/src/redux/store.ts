@@ -59,7 +59,10 @@ const saveSubsetFilters = [
     "reasoningSettings",
   ]),
   createFilter("indexing", []),
-  createFilter("tabs", ["tabs"]),
+  // Tabs are persisted to disk via the core (tabs.json) instead of
+  // localStorage, so that they can be scoped globally or per-workspace and
+  // shared across editor instances. Nothing is persisted here.
+  createFilter("tabs", []),
   createFilter("profiles", ["preferencesByProfileId", "selectedProfileId"]),
 ];
 

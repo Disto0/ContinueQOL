@@ -1,5 +1,5 @@
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import React, { useCallback, useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import styled from "styled-components";
 import { defaultBorderRadius } from "..";
@@ -9,11 +9,14 @@ import {
   handleSessionChange,
   removeTab,
   setActiveTab,
+  setActiveWorkspace,
   setTabs,
 } from "../../redux/slices/tabsSlice";
 import { AppDispatch, RootState } from "../../redux/store";
 import { loadSession, saveCurrentSession } from "../../redux/thunks/session";
+import { loadPersistedTabs, saveTabs } from "../../redux/thunks/tabs";
 import { varWithFallback } from "../../styles/theme";
+import { getWorkspaceKey } from "../../util/workspaceKey";
 
 // Haven't set up theme colors for tabs yet
 // Will keep it simple and choose from existing ones. Comments show vars we could use
@@ -136,14 +139,37 @@ export const TabBar = React.forwardRef<HTMLDivElement>((_, ref) => {
   const hasHistory = useSelector(
     (state: RootState) => state.session.history.length > 0,
   );
-  const tabs = useSelector((state: RootState) => state.tabs.tabs);
+  const sessionTabsScope = useSelector(
+    (state: RootState) => state.config.config.ui?.sessionTabsScope,
+  );
+  const tabs = useSelector((state: RootState) => {
+    const key =
+      sessionTabsScope === "local" ? state.tabs.activeWorkspaceKey : "global";
+    return state.tabs.tabsByWorkspace[key] ?? [];
+  });
 
   // Simple UUID generator for our needs
   const generateId = useCallback(() => {
     return Date.now().toString(36) + Math.random().toString(36).substring(2);
   }, []);
 
+  // Tracks whether persisted tabs have been loaded for the current scope, so
+  // that session reconciliation and auto-creation only run after hydration.
+  const [loadedScope, setLoadedScope] = useState<string | undefined>(undefined);
+  const loadedScopeKey = sessionTabsScope === "local" ? "local" : "global";
+
+  // Set the active workspace key on mount, then load persisted tabs for the
+  // current scope. This must happen before session reconciliation so that we
+  // restore the previous tabs instead of starting from a single blank tab.
   useEffect(() => {
+    dispatch(setActiveWorkspace(getWorkspaceKey()));
+    void dispatch(loadPersistedTabs({ scope: sessionTabsScope })).then(() => {
+      setLoadedScope(loadedScopeKey);
+    });
+  }, [dispatch, sessionTabsScope]);
+
+  useEffect(() => {
+    if (loadedScope !== loadedScopeKey) return;
     if (!currentSessionId) return;
 
     dispatch(
@@ -151,9 +177,16 @@ export const TabBar = React.forwardRef<HTMLDivElement>((_, ref) => {
         currentSessionId,
         currentSessionTitle,
         newTabId: generateId(), // Pass the ID generator result
+        scope: sessionTabsScope,
       }),
     );
-  }, [currentSessionId, currentSessionTitle]);
+  }, [
+    currentSessionId,
+    currentSessionTitle,
+    sessionTabsScope,
+    loadedScope,
+    loadedScopeKey,
+  ]);
 
   const handleNewTab = async () => {
     // Save current session before creating new one
@@ -167,19 +200,32 @@ export const TabBar = React.forwardRef<HTMLDivElement>((_, ref) => {
 
     dispatch(
       addTab({
-        id: generateId(),
-        title: `Chat ${tabs.length + 1}`,
-        isActive: true,
-        sessionId: undefined,
+        tab: {
+          id: generateId(),
+          title: `Chat ${tabs.length + 1}`,
+          isActive: true,
+          sessionId: undefined,
+        },
+        scope: sessionTabsScope,
       }),
     );
   };
 
   useEffect(() => {
+    if (loadedScope !== loadedScopeKey) return;
     if (!tabs.length) {
       handleNewTab();
     }
-  }, [tabs.map((t) => t.id).join(",")]);
+  }, [loadedScope, loadedScopeKey, tabs.map((t) => t.id).join(",")]);
+
+  // Persist tabs whenever their content changes (open/close/rename/activate),
+  // but only after the persisted tabs have been loaded for the current scope,
+  // so we never overwrite the saved state with a transient/empty one.
+  useEffect(() => {
+    if (loadedScope !== loadedScopeKey) return;
+    if (!tabs.length) return;
+    void dispatch(saveTabs({ scope: sessionTabsScope }));
+  }, [loadedScope, loadedScopeKey, sessionTabsScope, JSON.stringify(tabs)]);
 
   const handleTabClick = async (id: string) => {
     const targetTab = tabs.find((tab) => tab.id === id);
@@ -195,7 +241,7 @@ export const TabBar = React.forwardRef<HTMLDivElement>((_, ref) => {
       );
     }
 
-    dispatch(setActiveTab(id));
+    dispatch(setActiveTab({ id, scope: sessionTabsScope }));
   };
 
   const handleTabClose = async (id: string) => {
@@ -209,19 +255,20 @@ export const TabBar = React.forwardRef<HTMLDivElement>((_, ref) => {
       if (filtered.length) {
         await handleTabClick(lastTab.id);
         dispatch(
-          setTabs(
-            filtered.map((tab, i) => ({
+          setTabs({
+            tabs: filtered.map((tab, i) => ({
               ...tab,
               isActive: i === filtered.length - 1,
             })),
-          ),
+            scope: sessionTabsScope,
+          }),
         );
       } else {
-        dispatch(setTabs([]));
+        dispatch(setTabs({ tabs: [], scope: sessionTabsScope }));
         dispatch(newSession());
       }
     } else {
-      dispatch(removeTab(id));
+      dispatch(removeTab({ id, scope: sessionTabsScope }));
     }
   };
 

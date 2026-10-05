@@ -37,6 +37,7 @@ import {
   RangeInFileWithNextEditInfo,
   SerializedContinueConfig,
   Session,
+  SessionTab,
   SiteIndexingConfig,
   SlashCommandDescWithSource,
   StreamDiffLinesPayload,
@@ -73,6 +74,10 @@ export type ToCoreFromIdeOrWebviewProtocol = {
   "history/save": [Session, void];
   "history/share": [{ id: string; outputDir?: string }, void];
   "history/clear": [undefined, void];
+
+  // Session tabs (persisted open tabs, scoped globally or per workspace)
+  "tabs/load": [{ key: string }, { tabs: SessionTab[] }];
+  "tabs/save": [{ key: string; tabs: SessionTab[] }, void];
   "devdata/log": [DevDataLogEvent, void];
   "config/addOpenAiKey": [string, void];
   "config/addModel": [

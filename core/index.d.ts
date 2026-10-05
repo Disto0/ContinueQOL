@@ -297,6 +297,17 @@ export interface BaseSessionMetadata {
   messageCount?: number;
 }
 
+/**
+ * A single open session tab, as persisted to disk.
+ * Mirrors the GUI `Tab` shape so the two are structurally compatible.
+ */
+export interface SessionTab {
+  id: string;
+  title: string;
+  isActive: boolean;
+  sessionId?: string;
+}
+
 export interface RangeInFile {
   filepath: string;
   range: Range;
@@ -1459,6 +1470,13 @@ export interface ContinueUIConfig {
    * - "local": only show sessions belonging to the currently open workspace(s).
    */
   historyScope?: "global" | "local";
+  /**
+   * Controls how open session tabs are scoped.
+   * - "global" (default): tabs are shared across all projects (legacy behavior).
+   * - "local": each project keeps its own set of open tabs, isolated from other
+   *   projects and other VS Code instances.
+   */
+  sessionTabsScope?: "global" | "local";
 }
 
 export interface ContextMenuConfig {

@@ -49,6 +49,7 @@ export function UserSettingsSection() {
   // TODO defaults are in multiple places, should be consolidated and probably not explicit here
   const showSessionTabs = config.ui?.showSessionTabs ?? false;
   const historyScope = config.ui?.historyScope ?? "global";
+  const sessionTabsScope = config.ui?.sessionTabsScope ?? "global";
   const continueAfterToolRejection =
     config.ui?.continueAfterToolRejection ?? false;
   const codeWrap = config.ui?.codeWrap ?? false;
@@ -110,6 +111,21 @@ export function UserSettingsSection() {
                   value={historyScope}
                   onChange={(value) =>
                     handleUpdate({ historyScope: value as "global" | "local" })
+                  }
+                  options={[
+                    { label: "Global", value: "global" },
+                    { label: "Local", value: "local" },
+                  ]}
+                />
+                <UserSetting
+                  type="select"
+                  title="Session Tabs Scope"
+                  description="Global shares open tabs across all projects; Local keeps each project's tabs isolated."
+                  value={sessionTabsScope}
+                  onChange={(value) =>
+                    handleUpdate({
+                      sessionTabsScope: value as "global" | "local",
+                    })
                   }
                   options={[
                     { label: "Global", value: "global" },
