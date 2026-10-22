@@ -384,9 +384,12 @@ export function Chat() {
       {!!showSessionTabs && !isInEdit && <TabBar ref={tabsRef} />}
       {widget}
 
+      {/* overflow-x-hidden is required: with overflow-y-scroll, the horizontal
+          axis would otherwise compute to `auto`, turning the chat column into a
+          scrollable box that shifts messages independently from the input. */}
       <StepsDiv
         ref={stepsDivRef}
-        className={`pt-[8px] ${showScrollbar ? "thin-scrollbar" : "no-scrollbar"} ${history.length > 0 ? "min-h-0 flex-1 overflow-y-scroll" : "shrink-0"}`}
+        className={`pt-[8px] ${showScrollbar ? "thin-scrollbar" : "no-scrollbar"} overflow-x-hidden ${history.length > 0 ? "min-h-0 flex-1 overflow-y-scroll" : "shrink-0"}`}
       >
         <DeprecationBanner dismissable={true} />
         {highlights}

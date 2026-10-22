@@ -14,9 +14,9 @@
   <img src="media/github-readme.png" alt="Banner" />
 </p>
 
-## Fork: Distill
+## Fork: Continue(d)
 
-This is a personal fork of [Continue](https://github.com/continuedev/continue), focused on **agent transparency** in the VS Code extension: seeing exactly what the model is about to do (tool arguments) and what it received back (tool output).
+This is a personal fork of [Continue](https://github.com/continuedev/continue), used as my day-to-day VS Code coding agent. It tracks upstream and layers on the UI fixes and quality-of-life improvements I need while working — see [Features](#features) for the current list.
 
 ### Features
 
@@ -25,6 +25,7 @@ This is a personal fork of [Continue](https://github.com/continuedev/continue), 
 | 🛠️ **MCP Tool Args Display** | A toggle icon (code brackets) next to each tool call shows the tool's arguments inline, e.g. `SearchWeb(query: "react hooks", url: "https://...")`. Makes it easy to verify what the LLM is about to do before approving. |
 | 📤 **Tool Output Display**   | A toggle icon (document) next to each tool call shows the full response received from the tool (web search results, command output, ...). Makes it easy to analyze/debug the agent's behavior after execution.            |
 | 📊 **Token Count**           | The context usage indicator now shows the percentage of context used (e.g. "85% of context filled") alongside the existing context bar.                                                                                   |
+| ↔️ **Chat Width Fix**        | Long tool calls (commands, file paths, URLs with no spaces) no longer force the chat wider than the panel, and the args/output/truncate icons stay visible when the panel is narrowed.                                    |
 
 > All changes are purely UI enhancements — the underlying tool calls and MCP protocol are not modified.
 
@@ -37,6 +38,11 @@ Based on upstream `continuedev/continue` (package version 1.3.40).
 - **Added** — MCP Tool Args Display: toggle to show tool call arguments inline before approval
 - **Added** — Tool Output Display: toggle to show the full response received from a tool after execution
 - **Added** — Token Count: context usage percentage shown alongside the context bar
+- **Fixed** — Chat horizontal overflow. The root layout used `w-screen` (`100vw`), which in Chromium includes the vertical scrollbar width, so the chat was wider than the visible webview and right-aligned controls were clipped. Replaced with `w-full`, added `min-w-0` on the chat column and `flex-shrink-0` on the history sidebar (`gui/src/pages/gui/index.tsx`).
+- **Fixed** — Unintended horizontal scrolling of the message list. With `overflow-y: scroll` only, the horizontal axis computed to `auto`, letting messages shift independently from the input box. Added `overflow-x-hidden` on the steps container (`gui/src/pages/gui/Chat.tsx`).
+- **Fixed** — Tool call action icons (args / output / truncate) cut off by long arguments. Tool titles interpolate raw arguments (`hasAlready: "edited {{{ filepath }}}"`, search queries, URLs), and `overflow-wrap: break-word` does **not** participate in `min-content` sizing, so an argument without spaces forced the row wider than its container. Switched to `overflow-wrap: anywhere` and made the icon group non-shrinking, so the text truncates instead of the buttons (`ToolCallStatusMessage.tsx`, `ToolCallDisplay.tsx`, `SimpleToolCallUI.tsx`).
+
+> Note: Tailwind 3.4.17 has no `break-anywhere` utility (only `break-words`, `break-all`, `break-normal`, `break-keep`), hence the arbitrary `[overflow-wrap:anywhere]` class.
 
 ## What is Continue?
 

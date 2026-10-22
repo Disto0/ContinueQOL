@@ -53,7 +53,11 @@ export function ToolCallStatusMessage({
 
   return (
     <div
-      className="text-description line-clamp-4 min-w-0 break-words"
+      // `overflow-wrap: anywhere` (not `break-word`) is deliberate: only
+      // `anywhere` participates in min-content sizing, so a long tool argument
+      // (command/path/URL with no spaces) no longer forces the row wider than
+      // its container, which used to push the action buttons out of view.
+      className="text-description line-clamp-4 min-w-0 [overflow-wrap:anywhere]"
       data-testid="tool-call-title"
     >
       {`Continue ${intro} ${message}`}
