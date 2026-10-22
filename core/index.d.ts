@@ -1976,6 +1976,22 @@ export interface CompiledMessagesResult {
   compiledChatMessages: ChatMessage[];
   didPrune: boolean;
   contextPercentage: number;
+
+  // Optional: added by this fork to surface absolute token counts in the GUI.
+  // Kept optional so existing mocks and tests that build this object by hand
+  // (MockIdeMessenger, streamResponse*.test.ts) keep compiling. Remove the
+  // `?` once every producer/consumer is updated.
+  inputTokens?: number;
+  availableTokens?: number;
+  contextLength?: number;
+  breakdown?: ContextTokenBreakdown;
+}
+
+export interface ContextTokenBreakdown {
+  system: number;
+  tools: number;
+  history: number;
+  lastSequence: number;
 }
 
 export interface AddToChatPayload {

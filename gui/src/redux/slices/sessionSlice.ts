@@ -14,6 +14,7 @@ import {
   ChatMessage,
   ContextItem,
   ContextItemWithId,
+  ContextTokenBreakdown,
   FileSymbolMap,
   McpUiState,
   MessageModes,
@@ -221,6 +222,14 @@ type SessionState = {
   hasReasoningEnabled?: boolean;
   isPruned?: boolean;
   contextPercentage?: number;
+  // Added by this fork: absolute token counts for the active context window,
+  // recalculated on every send (never persisted).
+  contextTokens?: {
+    used: number;
+    available: number;
+    max: number;
+    breakdown?: ContextTokenBreakdown;
+  };
   inlineErrorMessage?: InlineErrorMessageType;
   compactionLoading: Record<number, boolean>; // Track compaction loading by message index
 };
@@ -434,6 +443,7 @@ export const sessionSlice = createSlice({
         state.inlineErrorMessage = undefined;
         state.isPruned = false;
         state.contextPercentage = undefined;
+        state.contextTokens = undefined;
       }
     },
     deleteMessage: (state, action: PayloadAction<number>) => {
@@ -442,6 +452,7 @@ export const sessionSlice = createSlice({
       state.inlineErrorMessage = undefined;
       state.isPruned = false;
       state.contextPercentage = undefined;
+      state.contextTokens = undefined;
     },
     deleteCompaction: (state, action: PayloadAction<number>) => {
       // Removes the conversation summary from the specified message
@@ -695,6 +706,7 @@ export const sessionSlice = createSlice({
       state.inlineErrorMessage = undefined;
       state.isPruned = false;
       state.contextPercentage = undefined;
+      state.contextTokens = undefined;
 
       if (payload) {
         state.history = payload.history as any;
@@ -1001,6 +1013,12 @@ export const sessionSlice = createSlice({
     setContextPercentage: (state, action: PayloadAction<number>) => {
       state.contextPercentage = action.payload;
     },
+    setContextTokens: (
+      state,
+      action: PayloadAction<SessionState["contextTokens"]>,
+    ) => {
+      state.contextTokens = action.payload;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1089,6 +1107,7 @@ export const {
   setInlineErrorMessage,
   setIsPruned,
   setContextPercentage,
+  setContextTokens,
   setCompactionLoading,
 } = sessionSlice.actions;
 

@@ -547,6 +547,17 @@ function compileChatMessages({
     compiledChatMessages: reassembled,
     didPrune,
     contextPercentage,
+    // Added by this fork: absolute token counts + per-category breakdown,
+    // so the GUI can show "1,240 / 128,000 tokens" instead of a bare percentage.
+    inputTokens,
+    availableTokens,
+    contextLength,
+    breakdown: {
+      system: systemMsgTokens,
+      tools: toolTokens,
+      history: currentTotal,
+      lastSequence: lastMessagesTokens,
+    },
   };
 }
 

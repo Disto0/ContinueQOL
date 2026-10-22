@@ -12,6 +12,7 @@ import {
   setActive,
   setAppliedRulesAtIndex,
   setContextPercentage,
+  setContextTokens,
   setInactive,
   setInlineErrorMessage,
   setIsPruned,
@@ -187,11 +188,36 @@ export const streamNormalInput = createAsyncThunk<
       }
     }
 
-    const { compiledChatMessages, didPrune, contextPercentage } =
-      precompiledRes.content;
+    const {
+      compiledChatMessages,
+      didPrune,
+      contextPercentage,
+      inputTokens,
+      availableTokens,
+      contextLength,
+      breakdown,
+    } = precompiledRes.content;
 
     dispatch(setIsPruned(didPrune));
     dispatch(setContextPercentage(contextPercentage));
+    // Added by this fork: surface absolute token counts in the toolbar.
+    // Only dispatched when core reports the optional fields (this fork's core
+    // always does). When absent (e.g. mocks / older core) we leave the field
+    // untouched: it is reset to undefined by newSession/deleteMessage/compact.
+    if (
+      inputTokens !== undefined &&
+      availableTokens !== undefined &&
+      contextLength !== undefined
+    ) {
+      dispatch(
+        setContextTokens({
+          used: inputTokens,
+          available: availableTokens,
+          max: contextLength,
+          breakdown,
+        }),
+      );
+    }
 
     const start = Date.now();
     const streamAborter = state.session.streamAborter;
