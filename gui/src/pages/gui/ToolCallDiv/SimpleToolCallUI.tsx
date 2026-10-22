@@ -90,7 +90,9 @@ export function SimpleToolCallUI({
           <ToolCallStatusMessage tool={tool} toolCallState={toolCallState} />
         </div>
 
-        <div className="flex flex-row items-center gap-1">
+        {/* flex-shrink-0 keeps the action icons visible: the text column is
+            the one that must truncate, not the buttons. */}
+        <div className="flex flex-shrink-0 flex-row items-center gap-1">
           {argsEntries.length > 0 && (
             <ArgsToggleIcon isShowing={showArgs} setIsShowing={setShowArgs} />
           )}
