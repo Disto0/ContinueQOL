@@ -6,7 +6,11 @@ import {
   PromptLog,
 } from "core";
 import { describe, expect, it, vi } from "vitest";
-import { createMockStore, getEmptyRootState } from "../../util/test/mockStore";
+import {
+  createMockStore,
+  getEmptyRootState,
+  stripHistoryTimestamps,
+} from "../../util/test/mockStore";
 import { streamResponseThunk } from "./streamResponse";
 
 // Mock external dependencies only - let selectors run naturally
@@ -421,7 +425,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state after thunk completion
     const finalState = mockStore.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,
@@ -762,7 +766,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state after tool call execution
     const finalState = mockStoreWithToolSettings.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...stateWithToolSettings,
       session: {
         ...stateWithToolSettings.session,
@@ -1231,7 +1235,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state - streaming should be stopped, partial content preserved
     const finalState = mockStoreWithAbort.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...abortState,
       session: {
         ...abortState.session,

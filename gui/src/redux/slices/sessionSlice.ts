@@ -394,6 +394,7 @@ export const sessionSlice = createSlice({
             content: "", // IMPORTANT - this is subsequently updated by response streaming
           },
           contextItems: [],
+          timestamp: Date.now(),
         });
       } else {
         // New input/response messages
@@ -406,6 +407,7 @@ export const sessionSlice = createSlice({
             },
             contextItems: [],
             editorState,
+            timestamp: Date.now(),
           },
           {
             message: {
@@ -414,6 +416,7 @@ export const sessionSlice = createSlice({
               content: "", // IMPORTANT - this is subsequently updated by response streaming
             },
             contextItems: [],
+            timestamp: Date.now(),
           },
         ]);
       }
@@ -439,6 +442,7 @@ export const sessionSlice = createSlice({
             content: "", // IMPORTANT - this is subsequently updated by response streaming
           },
           contextItems: [],
+          timestamp: Date.now(),
         });
         state.inlineErrorMessage = undefined;
         state.isPruned = false;
@@ -547,6 +551,7 @@ export const sessionSlice = createSlice({
                 id: uuidv4(),
               },
               contextItems: [],
+              timestamp: Date.now(),
             });
             continue;
           }
@@ -585,6 +590,7 @@ export const sessionSlice = createSlice({
                   id: uuidv4(),
                 },
                 contextItems: [],
+                timestamp: Date.now(),
               });
               lastItem = state.history[state.history.length - 1];
               lastMessage = lastItem.message;
@@ -608,6 +614,7 @@ export const sessionSlice = createSlice({
                 id: uuidv4(),
               },
               contextItems: [],
+              timestamp: Date.now(),
             };
             state.history.push(historyItem);
             lastItem = state.history[state.history.length - 1];

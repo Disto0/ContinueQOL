@@ -1,6 +1,7 @@
 import {
   ArrowsPointingInIcon,
   BarsArrowDownIcon,
+  InformationCircleIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
 import { ChatHistoryItem } from "core";
@@ -10,6 +11,16 @@ import { useCompactConversation } from "../../util/compactConversation";
 import { FeedbackButtons } from "../FeedbackButtons";
 import { CopyIconButton } from "../gui/CopyIconButton";
 import HeaderButtonWithToolTip from "../gui/HeaderButtonWithToolTip";
+import { ToolTip } from "../gui/Tooltip";
+
+// Compact absolute timestamp: YYMMDD-HH:MM (local time).
+function formatTimestamp(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getFullYear() % 100)}${pad(d.getMonth() + 1)}${pad(
+    d.getDate(),
+  )}-${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export interface ResponseActionsProps {
   isTruncated: boolean;
@@ -43,8 +54,41 @@ export default function ResponseActions({
 
   const compactConversation = useCompactConversation();
 
+  // Added by this fork: per-message timestamp + model info tooltip.
+  const timestamp = item.timestamp;
+  const modelTitle = item.promptLogs?.[0]?.modelTitle;
+  const usage =
+    item.message.role === "assistant" ? item.message.usage : undefined;
+
   return (
     <div className="text-description-muted mx-2 flex cursor-default items-center justify-end space-x-1 bg-transparent pb-0 text-xs">
+      {timestamp !== undefined && (
+        <ToolTip
+          place="top"
+          content={
+            <div className="flex flex-col gap-0.5 text-left">
+              <span>{formatTimestamp(timestamp)}</span>
+              {modelTitle && <span>{modelTitle}</span>}
+              {usage && (
+                <span>
+                  {`in ${usage.promptTokens ?? 0} / out ${
+                    usage.completionTokens ?? 0
+                  } tokens`}
+                </span>
+              )}
+            </div>
+          }
+        >
+          <span
+            data-testid={`message-timestamp-${index}`}
+            className="text-description-muted mr-auto flex cursor-default items-center gap-1 whitespace-nowrap"
+          >
+            <InformationCircleIcon className="h-3.5 w-3.5" />
+            {formatTimestamp(timestamp)}
+          </span>
+        </ToolTip>
+      )}
+
       <HeaderButtonWithToolTip
         testId={`compact-button-${index}`}
         text={

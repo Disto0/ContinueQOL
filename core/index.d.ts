@@ -553,6 +553,12 @@ export interface ChatHistoryItem {
   reasoning?: Reasoning;
   appliedRules?: RuleMetadata[];
   conversationSummary?: string;
+  /**
+   * Optional: epoch milliseconds recorded when this history item was created.
+   * Added by this fork so the GUI can show a per-message timestamp. Optional so
+   * sessions persisted before this change (and hand-built mocks) stay valid.
+   */
+  timestamp?: number;
 }
 
 export interface LLMFullCompletionOptions extends BaseCompletionOptions {

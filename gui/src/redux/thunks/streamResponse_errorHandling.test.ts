@@ -1,7 +1,11 @@
 import { JSONContent } from "@tiptap/core";
 import { InputModifiers } from "core";
 import { describe, expect, it, vi } from "vitest";
-import { createMockStore, getEmptyRootState } from "../../util/test/mockStore";
+import {
+  createMockStore,
+  getEmptyRootState,
+  stripHistoryTimestamps,
+} from "../../util/test/mockStore";
 import { streamResponseThunk } from "./streamResponse";
 
 // Mock external dependencies only - let selectors run naturally
@@ -194,7 +198,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state shows error dialog and inactive streaming
     const finalState = mockStoreNoModel.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...noModelState,
       session: {
         ...noModelState.session,
@@ -507,7 +511,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state shows error condition
     const finalState = mockStore.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,
@@ -808,7 +812,7 @@ describe("streamResponseThunk", () => {
 
     // Verify final state shows error dialog and inactive streaming
     const finalState = mockStore.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,

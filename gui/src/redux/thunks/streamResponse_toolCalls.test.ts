@@ -1,7 +1,10 @@
 import { JSONContent } from "@tiptap/core";
 import { AssistantChatMessage, InputModifiers, PromptLog } from "core";
 import { describe, expect, it, vi } from "vitest";
-import { createMockStore } from "../../util/test/mockStore";
+import {
+  createMockStore,
+  stripHistoryTimestamps,
+} from "../../util/test/mockStore";
 import { streamResponseThunk } from "./streamResponse";
 
 // Mock system message construction to keep test readable
@@ -436,7 +439,7 @@ describe("streamResponseThunk - tool calls", () => {
     expect(toolCallState?.status).toBe("done");
     expect(toolCallState?.output).toBeDefined();
 
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,
@@ -971,7 +974,7 @@ describe("streamResponseThunk - tool calls", () => {
 
     // Verify final state contains the tool call in "generated" state (waiting for approval)
     const finalState = mockStoreWithManualApproval.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,
@@ -1756,7 +1759,7 @@ describe("streamResponseThunk - tool calls", () => {
 
     // Verify final state shows completed tool call and follow-up response
     const finalState = mockStoreWithApproval.getState();
-    expect(finalState).toEqual({
+    expect(stripHistoryTimestamps(finalState)).toEqual({
       ...initialState,
       session: {
         ...initialState.session,

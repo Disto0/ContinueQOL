@@ -22,6 +22,25 @@ import tabsReducer, { INITIAL_TABS_STATE } from "../../redux/slices/tabsSlice";
 import uiReducer, { DEFAULT_UI_SLICE } from "../../redux/slices/uiSlice";
 import { RootState } from "../../redux/store";
 
+/**
+ * Removes the fork-added `timestamp` field from every history item of a state
+ * snapshot, so tests can assert against history literals that predate the field
+ * (and against non-deterministic Date.now() values).
+ */
+export function stripHistoryTimestamps<T>(state: T): T {
+  const session = (state as any)?.session;
+  if (!session || !Array.isArray(session.history)) {
+    return state;
+  }
+  return {
+    ...(state as any),
+    session: {
+      ...session,
+      history: session.history.map(({ timestamp, ...rest }: any) => rest),
+    },
+  } as T;
+}
+
 // TODO remove non-serializable streamAborter, causes headaches
 export const getEmptyRootState: () => RootState = () => {
   const withoutSession: Omit<RootState, "session"> = {
