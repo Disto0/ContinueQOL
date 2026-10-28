@@ -56,9 +56,14 @@ export default function ResponseActions({
 
   // Added by this fork: per-message timestamp + model info tooltip.
   const timestamp = item.timestamp;
-  const modelTitle = item.promptLogs?.[0]?.modelTitle;
+  const lastPromptLog = item.promptLogs?.at(-1);
+  const modelTitle = lastPromptLog?.modelTitle;
+  // Server-reported usage lives on the PromptLog (filled by the core from the
+  // final stream chunk); `message.usage` is only set by some providers that
+  // attach usage directly. Prefer the prompt log, fall back to the message.
   const usage =
-    item.message.role === "assistant" ? item.message.usage : undefined;
+    lastPromptLog?.usage ??
+    (item.message.role === "assistant" ? item.message.usage : undefined);
 
   return (
     <div className="text-description-muted mx-2 flex cursor-default items-center justify-end space-x-1 bg-transparent pb-0 text-xs">
