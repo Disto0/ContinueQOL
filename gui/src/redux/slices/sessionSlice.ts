@@ -560,6 +560,19 @@ export const sessionSlice = createSlice({
             ? renderChatMessage(message)
             : "";
 
+          // Added by this fork: skip empty "usage carrier" chunks. The core
+          // surfaces server-reported token counts as an assistant message with
+          // no content and no tool calls (see fromChatCompletionChunk). It must
+          // not create a phantom empty bubble in the history; the usage itself
+          // reaches the GUI via the PromptLog path instead.
+          if (
+            message.role === "assistant" &&
+            !messageContent &&
+            !("toolCalls" in message && message.toolCalls?.length)
+          ) {
+            continue;
+          }
+
           // OpenAI-compatible models in agent mode sometimes send
           // all of their data in one message, so we handle that case early.
           if (messageContent && message.role !== "tool") {

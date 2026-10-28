@@ -501,6 +501,14 @@ export interface PromptLog {
   modelProvider: string;
   prompt: string;
   completion: string;
+  /**
+   * Optional: token counts reported by the server for this request
+   * (OpenAI-compatible `usage`, captured via `stream_options.include_usage`).
+   * Added by this fork so the GUI can compare server-reported usage against its
+   * own local estimate. Optional so mocks/tests that build PromptLog by hand
+   * keep compiling.
+   */
+  usage?: Usage;
 }
 
 export type MessageModes = "chat" | "agent" | "plan" | "background";

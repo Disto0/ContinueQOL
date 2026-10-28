@@ -23,6 +23,29 @@ const ContextStatus = () => {
   const percent = Math.round((contextPercentage ?? 0) * 100);
   const isPruned = useAppSelector((state) => state.session.isPruned);
 
+  // Added by this fork (diagnostic): server-reported usage from the most recent
+  // assistant request. OpenAI-compatible servers report `usage` on the final
+  // stream chunk, which the core now surfaces via PromptLog. Used to compare the
+  // server's real token count against Continue's local (inflated) estimate.
+  // Kept next to the other hooks (before any early return) to respect the Rules
+  // of Hooks — a useMemo placed after a conditional `return null` changes the
+  // hook count between renders and crashes React (minified error #310).
+  const serverUsage = useMemo(() => {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const item = history[i];
+      if (item.message.role === "assistant") {
+        const usage = item.promptLogs?.at(-1)?.usage;
+        if (usage) {
+          return {
+            promptTokens: usage.promptTokens ?? 0,
+            completionTokens: usage.completionTokens ?? 0,
+          };
+        }
+      }
+    }
+    return undefined;
+  }, [history]);
+
   const isDifferentModelAndSameHistory = useMemo(() => {
     if (!selectedChatModel) return false;
     // only reset if history changes
@@ -88,6 +111,25 @@ const ContextStatus = () => {
                 <span>{`Last message: ${formatTokens(
                   contextTokens.breakdown.lastSequence,
                 )}`}</span>
+              </div>
+            )}
+            {/* Added by this fork (diagnostic): server-reported usage vs Continue's
+                local estimate, so the gap can be measured on real conversations. */}
+            {serverUsage && (
+              <div className="flex flex-col gap-0.5 border-t border-solid border-current pt-1 text-[10px] opacity-80">
+                <span>{`Server input: ${formatTokens(
+                  serverUsage.promptTokens,
+                )} tokens`}</span>
+                <span>{`Server output: ${formatTokens(
+                  serverUsage.completionTokens,
+                )} tokens`}</span>
+                {hasAbsoluteTokens && (
+                  <span>{`Estimate gap: ${formatTokens(
+                    contextTokens.used - serverUsage.promptTokens,
+                  )} tokens (${(
+                    contextTokens.used / Math.max(serverUsage.promptTokens, 1)
+                  ).toFixed(2)}×)`}</span>
+                )}
               </div>
             )}
             {isPruned && (

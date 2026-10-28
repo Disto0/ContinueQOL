@@ -1332,6 +1332,10 @@ export abstract class BaseLLM implements ILLM {
       modelProvider: this.underlyingProviderName,
       prompt,
       completion: completion.join(""),
+      // Added by this fork: surface the server-reported usage (captured above
+      // from usage-only assistant carrier chunks) so the GUI can compare it
+      // against its own local token estimate.
+      usage,
     };
   }
 

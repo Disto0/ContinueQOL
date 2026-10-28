@@ -395,6 +395,31 @@ export function fromChatCompletionChunk(
     return message;
   }
 
+  // Added by this fork: a final usage-only chunk (no content/tool calls) still
+  // carries server-reported token counts. Surface it as an empty assistant
+  // carrier so streamChat's existing `chunk.role === "assistant" && chunk.usage`
+  // capture picks it up. streamUpdate skips these empty carriers (no new bubble).
+  // The raw OpenAI usage shape (prompt_tokens/...) is normalised to core's
+  // Usage shape (promptTokens/...) so downstream consumers stay consistent.
+  if (chunk.usage) {
+    return {
+      role: "assistant",
+      content: "",
+      usage: {
+        promptTokens: chunk.usage.prompt_tokens ?? 0,
+        completionTokens: chunk.usage.completion_tokens ?? 0,
+        ...(chunk.usage.prompt_tokens_details
+          ? {
+              promptTokensDetails: {
+                cachedTokens: (chunk.usage.prompt_tokens_details as any)
+                  .cached_tokens,
+              },
+            }
+          : {}),
+      },
+    };
+  }
+
   return undefined;
 }
 
