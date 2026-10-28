@@ -50,6 +50,7 @@ export function UserSettingsSection() {
   const showSessionTabs = config.ui?.showSessionTabs ?? false;
   const historyScope = config.ui?.historyScope ?? "global";
   const sessionTabsScope = config.ui?.sessionTabsScope ?? "global";
+  const serverTokenCounting = config.ui?.serverTokenCounting ?? false;
   const continueAfterToolRejection =
     config.ui?.continueAfterToolRejection ?? false;
   const codeWrap = config.ui?.codeWrap ?? false;
@@ -171,6 +172,15 @@ export function UserSettingsSection() {
                   value={!displayRawMarkdown}
                   onChange={(value) =>
                     handleUpdate({ displayRawMarkdown: !value })
+                  }
+                />
+                <UserSetting
+                  type="toggle"
+                  title="Server-based token counting"
+                  description="Base the context limit on the token count reported by the server instead of Continue's local estimate. Recovers usable context on OpenAI-compatible servers (strata, llama.cpp, LM Studio); falls back to the local estimate when a server omits usage."
+                  value={serverTokenCounting}
+                  onChange={(value) =>
+                    handleUpdate({ serverTokenCounting: value })
                   }
                 />
               </div>

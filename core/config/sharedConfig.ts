@@ -34,6 +34,7 @@ export const sharedConfigSchema = z
     continueAfterToolRejection: z.boolean(),
     historyScope: z.enum(["global", "local"]),
     sessionTabsScope: z.enum(["global", "local"]),
+    serverTokenCounting: z.boolean(),
 
     // `tabAutocompleteOptions` in `ContinueConfig`
     useAutocompleteCache: z.boolean(),
@@ -146,6 +147,9 @@ export function modifyAnyConfigWithSharedConfig<
   }
   if (sharedConfig.sessionTabsScope !== undefined) {
     configCopy.ui.sessionTabsScope = sharedConfig.sessionTabsScope;
+  }
+  if (sharedConfig.serverTokenCounting !== undefined) {
+    configCopy.ui.serverTokenCounting = sharedConfig.serverTokenCounting;
   }
 
   if (sharedConfig.allowAnonymousTelemetry !== undefined) {
