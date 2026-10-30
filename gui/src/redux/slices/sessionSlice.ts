@@ -230,6 +230,15 @@ type SessionState = {
     max: number;
     breakdown?: ContextTokenBreakdown;
   };
+  // Added by this fork: measured calibration factor derived from the previous
+  // request's server-reported usage (server prompt_tokens / Continue's local
+  // estimate). Injected into llm/compileChat so pruning decides on counts that
+  // match the server instead of Continue's inflated local tokenizer. Reset to
+  // undefined (→ factor 1, local estimate) whenever the message set changes in
+  // a way that invalidates the previous measurement. Never persisted.
+  // The model title is stored alongside the factor so switching chat models
+  // (a different tokenizer) automatically invalidates a stale measurement.
+  tokenCalibration?: { factor: number; modelTitle: string };
   inlineErrorMessage?: InlineErrorMessageType;
   compactionLoading: Record<number, boolean>; // Track compaction loading by message index
 };
@@ -448,6 +457,7 @@ export const sessionSlice = createSlice({
         state.isPruned = false;
         state.contextPercentage = undefined;
         state.contextTokens = undefined;
+        state.tokenCalibration = undefined;
       }
     },
     deleteMessage: (state, action: PayloadAction<number>) => {
@@ -457,6 +467,7 @@ export const sessionSlice = createSlice({
       state.isPruned = false;
       state.contextPercentage = undefined;
       state.contextTokens = undefined;
+      state.tokenCalibration = undefined;
     },
     deleteCompaction: (state, action: PayloadAction<number>) => {
       // Removes the conversation summary from the specified message
@@ -727,6 +738,7 @@ export const sessionSlice = createSlice({
       state.isPruned = false;
       state.contextPercentage = undefined;
       state.contextTokens = undefined;
+      state.tokenCalibration = undefined;
 
       if (payload) {
         state.history = payload.history as any;
@@ -1039,6 +1051,12 @@ export const sessionSlice = createSlice({
     ) => {
       state.contextTokens = action.payload;
     },
+    setTokenCalibration: (
+      state,
+      action: PayloadAction<SessionState["tokenCalibration"]>,
+    ) => {
+      state.tokenCalibration = action.payload;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1128,6 +1146,7 @@ export const {
   setIsPruned,
   setContextPercentage,
   setContextTokens,
+  setTokenCalibration,
   setCompactionLoading,
 } = sessionSlice.actions;
 

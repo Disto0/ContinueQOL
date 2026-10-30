@@ -23,6 +23,16 @@ const ContextStatus = () => {
   const percent = Math.round((contextPercentage ?? 0) * 100);
   const isPruned = useAppSelector((state) => state.session.isPruned);
 
+  // Added by this fork: the active token calibration (factor + the model it was
+  // measured for) and whether server-based counting is enabled. Kept at the top
+  // with the other hooks (before any early return) to respect the Rules of Hooks.
+  const tokenCalibration = useAppSelector(
+    (state) => state.session.tokenCalibration,
+  );
+  const serverTokenCounting = useAppSelector(
+    (state) => state.config.config.ui?.serverTokenCounting ?? false,
+  );
+
   // Added by this fork (diagnostic): server-reported usage from the most recent
   // assistant request. OpenAI-compatible servers report `usage` on the final
   // stream chunk, which the core now surfaces via PromptLog. Used to compare the
@@ -73,6 +83,20 @@ const ContextStatus = () => {
   // compileChatMessages on a core build that reports them (this fork).
   const hasAbsoluteTokens =
     contextTokens !== undefined && contextTokens.available > 0;
+
+  // Added by this fork: with calibration on, `contextTokens.used` is the
+  // calibrated count (local estimate × factor). Divide back out to recover the
+  // raw local-tokenizer count Continue *would* have shown without the feature,
+  // and surface how many phantom tokens the calibration strips (= the real
+  // context recovered as a result).
+  const localUncalibrated =
+    hasAbsoluteTokens && tokenCalibration
+      ? Math.round(contextTokens.used / tokenCalibration.factor)
+      : undefined;
+  const recoveredTokens =
+    localUncalibrated !== undefined && contextTokens
+      ? localUncalibrated - contextTokens.used
+      : undefined;
 
   return (
     <div>
@@ -129,6 +153,34 @@ const ContextStatus = () => {
                   )} tokens (${(
                     contextTokens.used / Math.max(serverUsage.promptTokens, 1)
                   ).toFixed(2)}×)`}</span>
+                )}
+              </div>
+            )}
+            {/* Added by this fork: server-based token counting state. Shows the
+                active calibration factor (server count / Continue's local
+                estimate) so the real-vs-estimated split is visible while the
+                feature is being validated. Only shown when the setting is on. */}
+            {serverTokenCounting && (
+              <div className="flex flex-col gap-0.5 border-t border-solid border-current pt-1 text-[10px] opacity-80">
+                <span>{`Server-based counting: on`}</span>
+                {tokenCalibration ? (
+                  <>
+                    <span>{`Calibration factor: ${tokenCalibration.factor.toFixed(
+                      2,
+                    )}× (model: ${tokenCalibration.modelTitle})`}</span>
+                    {localUncalibrated !== undefined && (
+                      <span>{`Local tokenizer (no calibration): ${formatTokens(
+                        localUncalibrated,
+                      )} tokens`}</span>
+                    )}
+                    {recoveredTokens !== undefined && (
+                      <span>{`Context recovered: ${formatTokens(
+                        recoveredTokens,
+                      )} tokens`}</span>
+                    )}
+                  </>
+                ) : (
+                  <span>{`Calibration: not yet measured (using local estimate)`}</span>
                 )}
               </div>
             )}

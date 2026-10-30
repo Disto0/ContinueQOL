@@ -13,6 +13,7 @@ import {
   setAppliedRulesAtIndex,
   setContextPercentage,
   setContextTokens,
+  setTokenCalibration,
   setInactive,
   setInlineErrorMessage,
   setIsPruned,
@@ -173,9 +174,26 @@ export const streamNormalInput = createAsyncThunk<
     dispatch(setActive());
     dispatch(setInlineErrorMessage(undefined));
 
+    // Added by this fork: measured token calibration. When the setting is on
+    // and the previous request measured a calibration factor for the *same*
+    // model, reuse it so this request's pruning budget is based on the server's
+    // real token count instead of Continue's inflated local estimate. A model
+    // switch (different tokenizer) or a fresh session yields undefined → core
+    // falls back to its local estimate (factor 1).
+    const serverTokenCounting =
+      state.config.config.ui?.serverTokenCounting ?? false;
+    const existingCalibration = state.session.tokenCalibration;
+    const calibrationFactor =
+      serverTokenCounting &&
+      existingCalibration &&
+      existingCalibration.modelTitle === selectedChatModel.title
+        ? existingCalibration.factor
+        : undefined;
+
     const precompiledRes = await extra.ideMessenger.request("llm/compileChat", {
       messages,
       options: completionOptions,
+      calibrationFactor,
     });
 
     if (precompiledRes.status === "error") {
@@ -254,6 +272,36 @@ export const streamNormalInput = createAsyncThunk<
       // Attach prompt log and end thinking for reasoning models
       if (next.done && next.value) {
         dispatch(addPromptCompletionPair([next.value]));
+
+        // Added by this fork: measure calibration from this request's
+        // server-reported usage. Core already applied `calibrationFactor` to
+        // its per-message estimates, so `contextTokens.used` is the CALIBRATED
+        // estimate for the exact set that was sent. The server's prompt_tokens
+        // covers that same set, so the residual (real / calibrated) is folded
+        // multiplicatively into the stored factor:
+        //   F_new = F_old × real / (E_raw × F_old) = real / E_raw
+        // i.e. the full server/local ratio for the *uncalibrated* estimate,
+        // re-derived at the current context size each request (so a
+        // non-linear tokenizer divergence is tracked, not frozen at one value).
+        const serverUsage = next.value.usage;
+        const calibratedUsed = getState().session.contextTokens?.used;
+        if (
+          serverTokenCounting &&
+          serverUsage?.promptTokens &&
+          calibratedUsed &&
+          calibratedUsed > 0
+        ) {
+          const residual = serverUsage.promptTokens / calibratedUsed;
+          if (Number.isFinite(residual)) {
+            const nextFactor = (calibrationFactor ?? 1) * residual;
+            dispatch(
+              setTokenCalibration({
+                factor: Math.min(1.5, Math.max(0.33, nextFactor)),
+                modelTitle: selectedChatModel.title,
+              }),
+            );
+          }
+        }
 
         try {
           extra.ideMessenger.post("devdata/log", {

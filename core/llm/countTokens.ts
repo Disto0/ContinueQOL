@@ -426,6 +426,7 @@ function compileChatMessages({
   maxTokens,
   supportsImages,
   tools,
+  calibrationFactor,
 }: {
   modelName: string;
   msgs: ChatMessage[];
@@ -433,8 +434,25 @@ function compileChatMessages({
   maxTokens: number;
   supportsImages: boolean;
   tools?: Tool[];
+  calibrationFactor?: number;
 }): CompiledMessagesResult {
   let didPrune = false;
+
+  // Added by this fork: measured calibration. When a server reports the real
+  // token count for the exact message set Continue is about to send, the GUI
+  // derives a factor (server count / Continue's local estimate) and passes it
+  // here. Applying it to the per-message estimates — but NOT to availableTokens,
+  // which is the model's true size — makes the pruning budget reflect reality
+  // instead of Continue's inflated local tokenizer, so fewer messages are
+  // pruned and usable context is recovered. Clamped to [0.33, 1.5] so a bad
+  // measurement can never inflate the estimate, while still allowing servers
+  // whose real tokenizer is well under Continue's (e.g. strata/llama.cpp) to
+  // converge instead of being pinned at the floor.
+  const factor =
+    calibrationFactor !== undefined && Number.isFinite(calibrationFactor)
+      ? Math.min(1.5, Math.max(0.33, calibrationFactor))
+      : 1;
+  const calibrate = (n: number) => (factor === 1 ? n : Math.round(n * factor));
 
   let msgsCopy: ChatMessage[] = msgs.map((m) => ({ ...m }));
 
@@ -463,19 +481,19 @@ function compileChatMessages({
   // Count tokens for all messages in the tool sequence
   let lastMessagesTokens = 0;
   for (const msg of toolSequence) {
-    lastMessagesTokens += countChatMessageTokens(modelName, msg);
+    lastMessagesTokens += calibrate(countChatMessageTokens(modelName, msg));
   }
 
   // System message
   let systemMsgTokens = 0;
   if (systemMsg) {
-    systemMsgTokens = countChatMessageTokens(modelName, systemMsg);
+    systemMsgTokens = calibrate(countChatMessageTokens(modelName, systemMsg));
   }
 
   // Tools
   let toolTokens = 0;
   if (tools) {
-    toolTokens = countToolsTokens(tools, modelName);
+    toolTokens = calibrate(countToolsTokens(tools, modelName));
   }
 
   const contextLength = knownContextLength ?? DEFAULT_PRUNING_LENGTH;
@@ -510,7 +528,7 @@ function compileChatMessages({
   // Now remove messages till we're under the limit
   let currentTotal = 0;
   const historyWithTokens = msgsCopy.map((message) => {
-    const tokens = countChatMessageTokens(modelName, message);
+    const tokens = calibrate(countChatMessageTokens(modelName, message));
     currentTotal += tokens;
     return {
       ...message,

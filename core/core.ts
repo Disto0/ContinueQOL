@@ -599,7 +599,7 @@ export class Core {
     on("llm/listModels", this.handleListModels.bind(this));
 
     on("llm/compileChat", async (msg) => {
-      const { messages, options } = msg.data;
+      const { messages, options, calibrationFactor } = msg.data;
       const model = (await this.configHandler.loadConfig()).config
         ?.selectedModelByRole.chat;
 
@@ -607,7 +607,7 @@ export class Core {
         throw new Error("No chat model selected");
       }
 
-      return model.compileChatMessages(messages, options);
+      return model.compileChatMessages(messages, options, calibrationFactor);
     });
 
     // Provide messenger to utils so they can interact with GUI + state

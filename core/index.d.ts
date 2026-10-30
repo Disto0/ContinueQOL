@@ -139,8 +139,9 @@ export interface ILLM
 
   compileChatMessages(
     messages: ChatMessage[],
-    options: LLMFullCompletionOpeions,
-  ): CompiledChatMessagesReport;
+    options: LLMFullCompletionOptions,
+    calibrationFactor?: number,
+  ): CompiledMessagesResult;
 
   embed(chunks: string[]): Promise<number[][]>;
 
