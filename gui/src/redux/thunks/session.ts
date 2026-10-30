@@ -254,6 +254,12 @@ export const saveCurrentSession = createAsyncThunk<
       history: session.history,
       mode: session.mode,
       chatModelTitle: selectedChatModel?.title ?? null,
+      // Added by this fork: snapshot the last context accounting so the context
+      // bar/tooltip is restored on reload instead of only reappearing after the
+      // next send. Recalculated on the next request.
+      contextTokens: session.contextTokens,
+      contextPercentage: session.contextPercentage,
+      tokenCalibration: session.tokenCalibration,
     };
 
     const result = await dispatch(updateSession(updatedSession));

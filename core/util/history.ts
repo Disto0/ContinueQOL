@@ -127,6 +127,18 @@ export class HistoryManager {
     if (session.usage !== undefined) {
       orderedSession.usage = session.usage;
     }
+    // Added by this fork: persist the context-accounting snapshot (see Session)
+    // so the context bar/tooltip survives a session reload. Without these the
+    // explicit rebuild above would silently drop them before JSON.stringify.
+    if (session.contextTokens !== undefined) {
+      orderedSession.contextTokens = session.contextTokens;
+    }
+    if (session.contextPercentage !== undefined) {
+      orderedSession.contextPercentage = session.contextPercentage;
+    }
+    if (session.tokenCalibration !== undefined) {
+      orderedSession.tokenCalibration = session.tokenCalibration;
+    }
 
     fs.writeFileSync(
       getSessionFilePath(session.sessionId),

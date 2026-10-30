@@ -747,6 +747,12 @@ export const sessionSlice = createSlice({
         if (payload.mode) {
           state.mode = payload.mode;
         }
+        // Added by this fork: restore the persisted context-accounting snapshot
+        // so the context bar/tooltip is visible immediately on load (it would
+        // otherwise stay hidden until the next send recomputes it).
+        state.contextTokens = payload.contextTokens;
+        state.contextPercentage = payload.contextPercentage;
+        state.tokenCalibration = payload.tokenCalibration;
       } else {
         state.history = [];
         state.title = NEW_SESSION_TITLE;

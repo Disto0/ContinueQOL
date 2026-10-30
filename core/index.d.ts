@@ -288,6 +288,22 @@ export interface Session {
   chatModelTitle?: string | null;
   /** Optional: cumulative usage and cost for all LLM API calls in this session */
   usage?: SessionUsage;
+  /**
+   * Added by this fork: snapshot of the last computed context accounting so the
+   * context bar/tooltip survives a session reload (it is otherwise recomputed
+   * only on the next send). Optional so sessions saved before this change load
+   * unchanged. Recalculated on the next request.
+   */
+  contextTokens?: {
+    used: number;
+    available: number;
+    max: number;
+    breakdown?: ContextTokenBreakdown;
+  };
+  /** Optional: last computed context fill ratio (see `contextTokens`). */
+  contextPercentage?: number;
+  /** Optional: measured token calibration (factor + model it was measured for). */
+  tokenCalibration?: { factor: number; modelTitle: string };
 }
 
 export interface BaseSessionMetadata {
