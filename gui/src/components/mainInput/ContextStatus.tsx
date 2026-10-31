@@ -29,8 +29,8 @@ const ContextStatus = () => {
   const tokenCalibration = useAppSelector(
     (state) => state.session.tokenCalibration,
   );
-  const serverTokenCounting = useAppSelector(
-    (state) => state.config.config.ui?.serverTokenCounting ?? false,
+  const contextTokenMode = useAppSelector(
+    (state) => state.config.config.ui?.contextTokenMode ?? "local",
   );
 
   // Added by this fork (diagnostic): server-reported usage from the most recent
@@ -156,13 +156,14 @@ const ContextStatus = () => {
                 )}
               </div>
             )}
-            {/* Added by this fork: server-based token counting state. Shows the
-                active calibration factor (server count / Continue's local
-                estimate) so the real-vs-estimated split is visible while the
-                feature is being validated. Only shown when the setting is on. */}
-            {serverTokenCounting && (
+            {/* Added by this fork: server-referenced token counting state. Shows
+                the active mode and, for calibration, the measured factor (server
+                count / Continue's local estimate) so the real-vs-estimated split
+                is visible while the feature is being validated. Hidden in local
+                mode. */}
+            {contextTokenMode !== "local" && (
               <div className="flex flex-col gap-0.5 border-t border-solid border-current pt-1 text-[10px] opacity-80">
-                <span>{`Server-based counting: on`}</span>
+                <span>{`Token counting: ${contextTokenMode}`}</span>
                 {tokenCalibration ? (
                   <>
                     <span>{`Calibration factor: ${tokenCalibration.factor.toFixed(

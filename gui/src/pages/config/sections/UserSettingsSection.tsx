@@ -50,7 +50,7 @@ export function UserSettingsSection() {
   const showSessionTabs = config.ui?.showSessionTabs ?? false;
   const historyScope = config.ui?.historyScope ?? "global";
   const sessionTabsScope = config.ui?.sessionTabsScope ?? "global";
-  const serverTokenCounting = config.ui?.serverTokenCounting ?? false;
+  const contextTokenMode = config.ui?.contextTokenMode ?? "local";
   const continueAfterToolRejection =
     config.ui?.continueAfterToolRejection ?? false;
   const codeWrap = config.ui?.codeWrap ?? false;
@@ -175,13 +175,29 @@ export function UserSettingsSection() {
                   }
                 />
                 <UserSetting
-                  type="toggle"
-                  title="Server-based token counting"
-                  description="Base the context limit on the token count reported by the server instead of Continue's local estimate. Recovers usable context on OpenAI-compatible servers (strata, llama.cpp, LM Studio); falls back to the local estimate when a server omits usage."
-                  value={serverTokenCounting}
+                  type="select"
+                  title="Context token counting"
+                  description="How Continue measures tokens when trimming old context. Local uses Continue's own estimate. Calibration applies a server-measured ratio to the whole history. Incremental anchors on the exact token count the server reported for the last successful request (best for large contexts on OpenAI-compatible servers such as strata/llama.cpp)."
+                  value={contextTokenMode}
                   onChange={(value) =>
-                    handleUpdate({ serverTokenCounting: value })
+                    handleUpdate({
+                      contextTokenMode: value as
+                        | "local"
+                        | "calibration"
+                        | "incremental",
+                    })
                   }
+                  options={[
+                    { label: "Local estimate", value: "local" },
+                    {
+                      label: "Calibration (server-measured)",
+                      value: "calibration",
+                    },
+                    {
+                      label: "Incremental (server-anchored)",
+                      value: "incremental",
+                    },
+                  ]}
                 />
               </div>
             </Card>

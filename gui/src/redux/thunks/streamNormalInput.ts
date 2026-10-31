@@ -180,11 +180,12 @@ export const streamNormalInput = createAsyncThunk<
     // real token count instead of Continue's inflated local estimate. A model
     // switch (different tokenizer) or a fresh session yields undefined → core
     // falls back to its local estimate (factor 1).
-    const serverTokenCounting =
-      state.config.config.ui?.serverTokenCounting ?? false;
+    const contextTokenMode =
+      state.config.config.ui?.contextTokenMode ?? "local";
+    const isCalibration = contextTokenMode === "calibration";
     const existingCalibration = state.session.tokenCalibration;
     const calibrationFactor =
-      serverTokenCounting &&
+      isCalibration &&
       existingCalibration &&
       existingCalibration.modelTitle === selectedChatModel.title
         ? existingCalibration.factor
@@ -286,7 +287,7 @@ export const streamNormalInput = createAsyncThunk<
         const serverUsage = next.value.usage;
         const calibratedUsed = getState().session.contextTokens?.used;
         if (
-          serverTokenCounting &&
+          isCalibration &&
           serverUsage?.promptTokens &&
           calibratedUsed &&
           calibratedUsed > 0

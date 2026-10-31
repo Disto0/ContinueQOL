@@ -1509,15 +1509,17 @@ export interface ContinueUIConfig {
    */
   sessionTabsScope?: "global" | "local";
   /**
-   * Added by this fork: use server-reported token counts for context accounting.
-   * When enabled, Continue bases its context accounting on the real token count
-   * the server reports for the last request (`usage` on the final stream chunk),
-   * and only locally estimates the newly added messages, instead of re-estimating
-   * the whole history with its inflated local tokenizer. Falls back to the local
-   * estimate when a server omits `usage`, or on the first request of a session.
-   * Defaults to false until the feature is validated.
+   * Added by this fork: how Continue accounts for tokens when pruning context.
+   * - "local" (default): Continue's own inflated local tokenizer (upstream).
+   * - "calibration": a server-measured factor is applied to the whole history,
+   *   re-measured every request from the server's reported `usage`.
+   * - "incremental": pruning is anchored on the exact server-reported token
+   *   count of the last successful request, only locally estimating newly added
+   *   messages, so the context ceiling reflects the server's real tokenizer.
+   * Falls back to "local" when a server omits `usage` or on the first request
+   * of a session. Defaults to "local" so existing behaviour is unchanged.
    */
-  serverTokenCounting?: boolean;
+  contextTokenMode?: "local" | "calibration" | "incremental";
 }
 
 export interface ContextMenuConfig {
