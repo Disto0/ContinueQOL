@@ -14,6 +14,7 @@ import {
   setContextPercentage,
   setContextTokens,
   setTokenCalibration,
+  setServerAnchor,
   setInactive,
   setInlineErrorMessage,
   setIsPruned,
@@ -183,6 +184,7 @@ export const streamNormalInput = createAsyncThunk<
     const contextTokenMode =
       state.config.config.ui?.contextTokenMode ?? "local";
     const isCalibration = contextTokenMode === "calibration";
+    const isIncremental = contextTokenMode === "incremental";
     const existingCalibration = state.session.tokenCalibration;
     const calibrationFactor =
       isCalibration &&
@@ -302,6 +304,22 @@ export const streamNormalInput = createAsyncThunk<
               }),
             );
           }
+        }
+
+        // Added by this fork: capture the server anchor for incremental mode.
+        // The server reported prompt_tokens for exactly `compiledChatMessages`
+        // (the set we just sent), so store that exact count + message count as
+        // the baseline the next request can treat as already-counted. Only when
+        // the server actually reported usage; otherwise the anchor stays absent
+        // and the core falls back to a full local estimate.
+        if (isIncremental && serverUsage?.promptTokens) {
+          dispatch(
+            setServerAnchor({
+              promptTokens: serverUsage.promptTokens,
+              messageCount: compiledChatMessages.length,
+              modelTitle: selectedChatModel.title,
+            }),
+          );
         }
 
         try {

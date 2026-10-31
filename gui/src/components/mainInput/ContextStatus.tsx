@@ -32,6 +32,7 @@ const ContextStatus = () => {
   const contextTokenMode = useAppSelector(
     (state) => state.config.config.ui?.contextTokenMode ?? "local",
   );
+  const serverAnchor = useAppSelector((state) => state.session.serverAnchor);
 
   // Added by this fork (diagnostic): server-reported usage from the most recent
   // assistant request. OpenAI-compatible servers report `usage` on the final
@@ -157,14 +158,25 @@ const ContextStatus = () => {
               </div>
             )}
             {/* Added by this fork: server-referenced token counting state. Shows
-                the active mode and, for calibration, the measured factor (server
-                count / Continue's local estimate) so the real-vs-estimated split
-                is visible while the feature is being validated. Hidden in local
-                mode. */}
+                the active mode and its reference (calibration factor, or the
+                server-anchored baseline for incremental mode) so the
+                real-vs-estimated split is visible while the feature is validated.
+                Hidden in local mode. */}
             {contextTokenMode !== "local" && (
               <div className="flex flex-col gap-0.5 border-t border-solid border-current pt-1 text-[10px] opacity-80">
                 <span>{`Token counting: ${contextTokenMode}`}</span>
-                {tokenCalibration ? (
+                {contextTokenMode === "incremental" ? (
+                  serverAnchor ? (
+                    <>
+                      <span>{`Server anchor: ${formatTokens(
+                        serverAnchor.promptTokens,
+                      )} tokens across ${serverAnchor.messageCount} messages (model: ${serverAnchor.modelTitle})`}</span>
+                      <span>{`Next request will trust this baseline and only estimate newly added messages.`}</span>
+                    </>
+                  ) : (
+                    <span>{`Incremental: not yet anchored (using local estimate)`}</span>
+                  )
+                ) : tokenCalibration ? (
                   <>
                     <span>{`Calibration factor: ${tokenCalibration.factor.toFixed(
                       2,

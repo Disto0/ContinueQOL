@@ -239,6 +239,17 @@ type SessionState = {
   // The model title is stored alongside the factor so switching chat models
   // (a different tokenizer) automatically invalidates a stale measurement.
   tokenCalibration?: { factor: number; modelTitle: string };
+  // Added by this fork: the server-anchored token baseline for incremental mode.
+  // Captures the exact prompt_tokens the server reported for the last
+  // successful request AND how many messages that request contained, so the
+  // next request can treat those as already-counted and only locally estimate
+  // the delta. modelTitle invalidates the anchor on a model switch. Not yet
+  // persisted across reloads (that lands with the core wiring step).
+  serverAnchor?: {
+    promptTokens: number;
+    messageCount: number;
+    modelTitle: string;
+  };
   inlineErrorMessage?: InlineErrorMessageType;
   compactionLoading: Record<number, boolean>; // Track compaction loading by message index
 };
@@ -458,6 +469,7 @@ export const sessionSlice = createSlice({
         state.contextPercentage = undefined;
         state.contextTokens = undefined;
         state.tokenCalibration = undefined;
+        state.serverAnchor = undefined;
       }
     },
     deleteMessage: (state, action: PayloadAction<number>) => {
@@ -468,6 +480,7 @@ export const sessionSlice = createSlice({
       state.contextPercentage = undefined;
       state.contextTokens = undefined;
       state.tokenCalibration = undefined;
+      state.serverAnchor = undefined;
     },
     deleteCompaction: (state, action: PayloadAction<number>) => {
       // Removes the conversation summary from the specified message
@@ -739,6 +752,7 @@ export const sessionSlice = createSlice({
       state.contextPercentage = undefined;
       state.contextTokens = undefined;
       state.tokenCalibration = undefined;
+      state.serverAnchor = undefined;
 
       if (payload) {
         state.history = payload.history as any;
@@ -1063,6 +1077,12 @@ export const sessionSlice = createSlice({
     ) => {
       state.tokenCalibration = action.payload;
     },
+    setServerAnchor: (
+      state,
+      action: PayloadAction<SessionState["serverAnchor"]>,
+    ) => {
+      state.serverAnchor = action.payload;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1153,6 +1173,7 @@ export const {
   setContextPercentage,
   setContextTokens,
   setTokenCalibration,
+  setServerAnchor,
   setCompactionLoading,
 } = sessionSlice.actions;
 
