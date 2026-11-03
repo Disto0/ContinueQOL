@@ -21,12 +21,15 @@ export function FeedbackButtons({ item }: FeedbackButtonsProps) {
     setFeedback(feedback);
     if (item.promptLogs?.length) {
       for (const promptLog of item.promptLogs) {
-        const { modelTitle, modelProvider, ...logData } = promptLog;
+        // prompt is no longer persisted with sessions (see HistoryManager.save),
+        // so it may be absent here. The telemetry schema expects a string.
+        const { modelTitle, modelProvider, prompt, ...logData } = promptLog;
         ideMessenger.post("devdata/log", {
           name: "chatFeedback",
           data: {
             ...logData,
             completionOptions: {}, // TODO delete completionOptions from @continuedev/config-yaml
+            prompt: prompt ?? "",
             modelProvider: modelProvider || "unknown",
             modelName: modelTitle,
             modelTitle: modelTitle,

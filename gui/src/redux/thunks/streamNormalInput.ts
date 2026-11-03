@@ -326,7 +326,9 @@ export const streamNormalInput = createAsyncThunk<
           extra.ideMessenger.post("devdata/log", {
             name: "chatInteraction",
             data: {
-              prompt: next.value.prompt,
+              // prompt may be absent (no longer persisted in some paths); the
+              // telemetry schema expects a string, so fall back to empty.
+              prompt: next.value.prompt ?? "",
               completion: next.value.completion,
               modelProvider: selectedChatModel.underlyingProviderName,
               modelName: selectedChatModel.title,

@@ -516,7 +516,16 @@ export type FileSymbolMap = Record<string, SymbolWithRange[]>;
 export interface PromptLog {
   modelTitle: string;
   modelProvider: string;
-  prompt: string;
+  /**
+   * Optional: the full prompt that was sent to the model for this turn.
+   * It is no longer persisted in sessions (see HistoryManager.save /
+   * stripPromptLogsPrompt) because it duplicates the whole history at each
+   * turn, making session files grow quadratically and crash large
+   * conversations on reload. The full prompt is still written to the Continue
+   * Console log separately. Kept optional so in-memory prompt logs and existing
+   * code/tests keep working, while loaded sessions may legitimately omit it.
+   */
+  prompt?: string;
   completion: string;
   /**
    * Optional: token counts reported by the server for this request

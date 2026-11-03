@@ -21,6 +21,42 @@ function safeParseArray<T>(
   }
 }
 
+/**
+ * Strips the `prompt` field from every message's promptLogs before persisting.
+ *
+ * Each assistant message's promptLogs[n].prompt stores the *full* prompt that
+ * was sent to the LLM at that turn (i.e. the entire accumulated history up to
+ * that point). Persisting it makes session files grow quadratically with
+ * conversation length - a long agent session reached 481 MB from promptLogs
+ * alone (vs 3.7 MB of actual message content), which froze/crashed the webview
+ * on reload.
+ *
+ * The `prompt` field is not read by the GUI: the only consumers
+ * (ContextStatus.tsx, ResponseActions.tsx) read `usage` and `modelTitle`, and
+ * the full prompt is already written separately to the Continue Console log
+ * (`getPromptLogsPath()` via LLMLogFormatter). So it is safe to drop from the
+ * persisted session.
+ *
+ * Returns a shallow-copied history; the input objects are not mutated.
+ */
+function stripPromptLogsPrompt(
+  history: Session["history"],
+): Session["history"] {
+  return history.map((item) => {
+    if (!item.promptLogs || !item.promptLogs.length) {
+      return item;
+    }
+    const hadPrompt = item.promptLogs.some((log) => log.prompt !== undefined);
+    if (!hadPrompt) {
+      return item;
+    }
+    return {
+      ...item,
+      promptLogs: item.promptLogs.map(({ prompt, ...rest }) => rest),
+    };
+  });
+}
+
 export class HistoryManager {
   list(options: ListHistoryOptions): BaseSessionMetadata[] {
     const filepath = getSessionsListPath();
@@ -116,7 +152,11 @@ export class HistoryManager {
       sessionId: session.sessionId,
       title: session.title,
       workspaceDirectory: session.workspaceDirectory,
-      history: session.history,
+      // promptLogs[].prompt is the full prompt sent at each turn, which grows
+      // quadratically with conversation length and crashed the webview on reload.
+      // It is redundant with the Continue Console log and unused by the GUI, so
+      // it is stripped here. See stripPromptLogsPrompt for the full rationale.
+      history: stripPromptLogsPrompt(session.history),
     };
     if (session.mode) {
       orderedSession.mode = session.mode;
