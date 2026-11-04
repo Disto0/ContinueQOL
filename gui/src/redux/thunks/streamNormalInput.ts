@@ -150,13 +150,28 @@ export const streamNormalInput = createAsyncThunk<
         )
       : baseSystemMessage;
 
-    const withoutMessageIds = state.session.history.map((item) => {
-      const { id, ...messageWithoutId } = item.message;
-      return { ...item, message: messageWithoutId };
-    });
+    // Added by this fork: how we account for tokens when pruning. Read up front
+    // because it decides whether message ids are threaded to the core below.
+    const contextTokenMode =
+      state.config.config.ui?.contextTokenMode ?? "local";
+    const isCalibration = contextTokenMode === "calibration";
+    const isIncremental = contextTokenMode === "incremental";
+
+    // Added by this fork: in incremental mode only, keep each message's stable
+    // client-side id on the history we compile. The core echoes those ids back on
+    // compiledChatMessages and the server anchor records which ids it counted, so
+    // the next request can tell already-counted messages from newly added ones.
+    // Providers only serialize explicit fields, so ids never reach the API. In the
+    // other modes ids are stripped exactly as before, keeping the payload identical.
+    const historyForCompile = isIncremental
+      ? state.session.history
+      : state.session.history.map((item) => {
+          const { id, ...messageWithoutId } = item.message;
+          return { ...item, message: messageWithoutId };
+        });
 
     const { messages, appliedRules, appliedRuleIndex } = constructMessages(
-      withoutMessageIds,
+      historyForCompile,
       systemMessage,
       state.config.config.rules,
       state.ui.ruleSettings,
@@ -181,10 +196,6 @@ export const streamNormalInput = createAsyncThunk<
     // real token count instead of Continue's inflated local estimate. A model
     // switch (different tokenizer) or a fresh session yields undefined → core
     // falls back to its local estimate (factor 1).
-    const contextTokenMode =
-      state.config.config.ui?.contextTokenMode ?? "local";
-    const isCalibration = contextTokenMode === "calibration";
-    const isIncremental = contextTokenMode === "incremental";
     const existingCalibration = state.session.tokenCalibration;
     const calibrationFactor =
       isCalibration &&
@@ -308,15 +319,20 @@ export const streamNormalInput = createAsyncThunk<
 
         // Added by this fork: capture the server anchor for incremental mode.
         // The server reported prompt_tokens for exactly `compiledChatMessages`
-        // (the set we just sent), so store that exact count + message count as
-        // the baseline the next request can treat as already-counted. Only when
-        // the server actually reported usage; otherwise the anchor stays absent
-        // and the core falls back to a full local estimate.
+        // (the set we just sent). The core echoes each message's stable id back,
+        // so we record those ids as "already counted" — the next request treats
+        // these specific messages as known and only estimates newly added ones.
+        // Keying by id (not a count) survives the core re-pruning its older
+        // turns. Only captured when the server actually reported usage; otherwise
+        // the anchor stays absent and the core falls back to a full local estimate.
         if (isIncremental && serverUsage?.promptTokens) {
+          const anchoredIds = compiledChatMessages
+            .map((m) => m.id)
+            .filter((id): id is string => typeof id === "string");
           dispatch(
             setServerAnchor({
               promptTokens: serverUsage.promptTokens,
-              messageCount: compiledChatMessages.length,
+              anchoredIds,
               modelTitle: selectedChatModel.title,
             }),
           );

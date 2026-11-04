@@ -403,6 +403,12 @@ export interface ToolResultChatMessage {
   role: "tool";
   content: string;
   toolCallId: string;
+  /**
+   * Added by this fork: optional stable client-side message id, used to identify
+   * which messages a server has already token-counted (incremental context
+   * accounting). Optional so hand-built messages and existing code are unaffected.
+   */
+  id?: string;
   /** Arbitrary per-message metadata (IDs, provider-specific info, etc.) */
   metadata?: Record<string, unknown>;
 }
@@ -410,6 +416,8 @@ export interface ToolResultChatMessage {
 export interface UserChatMessage {
   role: "user";
   content: MessageContent;
+  /** See ToolResultChatMessage.id. */
+  id?: string;
   /** Arbitrary per-message metadata (IDs, provider-specific info, etc.) */
   metadata?: Record<string, unknown>;
 }
@@ -424,6 +432,8 @@ export interface ThinkingChatMessage {
     signature?: string;
     [key: string]: any;
   }[];
+  /** See ToolResultChatMessage.id. */
+  id?: string;
   /** Arbitrary per-message metadata (IDs, provider-specific info, etc.) */
   metadata?: Record<string, unknown>;
 }
@@ -454,6 +464,8 @@ export interface AssistantChatMessage {
   content: MessageContent;
   toolCalls?: ToolCallDelta[];
   usage?: Usage;
+  /** See ToolResultChatMessage.id. */
+  id?: string;
   /** Arbitrary per-message metadata (IDs, provider-specific info, etc.) */
   metadata?: Record<string, unknown>;
 }
@@ -461,6 +473,8 @@ export interface AssistantChatMessage {
 export interface SystemChatMessage {
   role: "system";
   content: string;
+  /** See ToolResultChatMessage.id. */
+  id?: string;
   /** Arbitrary per-message metadata (IDs, provider-specific info, etc.) */
   metadata?: Record<string, unknown>;
 }

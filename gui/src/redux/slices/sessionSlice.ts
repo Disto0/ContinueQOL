@@ -240,14 +240,16 @@ type SessionState = {
   // (a different tokenizer) automatically invalidates a stale measurement.
   tokenCalibration?: { factor: number; modelTitle: string };
   // Added by this fork: the server-anchored token baseline for incremental mode.
-  // Captures the exact prompt_tokens the server reported for the last
-  // successful request AND how many messages that request contained, so the
-  // next request can treat those as already-counted and only locally estimate
-  // the delta. modelTitle invalidates the anchor on a model switch. Not yet
+  // Captures the exact prompt_tokens the server reported for the last successful
+  // request AND the ids of the messages that request actually contained (echoed
+  // back by the core), so the next request can treat those specific messages as
+  // already-counted and only locally estimate newly added ones. Keying by ids
+  // (not a count/index) is what makes the anchor survive the core re-pruning its
+  // own older turns. modelTitle invalidates the anchor on a model switch. Not yet
   // persisted across reloads (that lands with the core wiring step).
   serverAnchor?: {
     promptTokens: number;
-    messageCount: number;
+    anchoredIds: string[];
     modelTitle: string;
   };
   inlineErrorMessage?: InlineErrorMessageType;
