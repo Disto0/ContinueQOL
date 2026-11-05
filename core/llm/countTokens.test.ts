@@ -182,6 +182,102 @@ describe.skip("compileChatMessages", () => {
   });
 });
 
+describe("compileChatMessages (incremental, server-anchored)", () => {
+  const systemMsg: ChatMessage = {
+    role: "system",
+    content: "You are a helpful assistant.",
+  };
+  const u = (id: string, content: string): ChatMessage =>
+    ({
+      role: "user",
+      content,
+      id,
+    }) as ChatMessage;
+  const a = (id: string, content: string): ChatMessage =>
+    ({
+      role: "assistant",
+      content,
+      id,
+    }) as ChatMessage;
+
+  // A history where every turn is "old" (anchored) plus one brand-new user turn.
+  // The new turn is the last message, so extractToolSequence treats it as the
+  // protected last sequence; the anchored turns are the prunable history.
+  const longText = "lorem ipsum dolor sit amet ".repeat(40);
+  const history: ChatMessage[] = [
+    u("old-1", longText),
+    a("old-2", longText),
+    u("old-3", longText),
+    a("old-4", longText),
+  ];
+  const newTurn = u("new-1", "What is the capital of France?");
+  const msgs = [systemMsg, ...history, newTurn];
+  const anchoredKeys = history.map((m) => (m as any).id);
+
+  it("anchors old messages (zero re-count) and only estimates the new turn", () => {
+    const incremental = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 200000,
+      maxTokens: 100,
+      supportsImages: false,
+      serverBaseTokens: 10000,
+      anchoredKeys,
+    });
+
+    // Baseline is honored; nothing overflows the huge context → no pruning.
+    expect(incremental.didPrune).toBe(false);
+    expect(incremental.inputTokens).toBeGreaterThanOrEqual(10000);
+
+    // What the core added locally (inputTokens - base) is only the new turn, so
+    // it must be far smaller than the full local count of the anchored history,
+    // which is what the default (unanchored) path reports as history tokens.
+    const baseline = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 200000,
+      maxTokens: 100,
+      supportsImages: false,
+    });
+    const addedLocally = incremental.inputTokens - 10000;
+    expect(addedLocally).toBeGreaterThan(0);
+    expect(addedLocally).toBeLessThan(baseline.breakdown.history);
+  });
+
+  it("prunes anchored history when base + delta exceeds the available budget", () => {
+    const result = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 12000,
+      maxTokens: 100,
+      supportsImages: false,
+      serverBaseTokens: 11800,
+      anchoredKeys,
+    });
+
+    expect(result.didPrune).toBe(true);
+    // The new turn is always kept; some anchored history had to go.
+    expect(result.inputTokens).toBeLessThanOrEqual(result.availableTokens);
+    const kept = result.compiledChatMessages.filter((m) => m.role !== "system");
+    const keptIds = kept.map((m) => (m as any).id);
+    expect(keptIds).toContain("new-1"); // protected last sequence
+    expect(keptIds).not.toContain("old-1"); // oldest dropped first
+  });
+
+  it("falls back to the full local estimate when no baseline is provided", () => {
+    const result = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 200000,
+      maxTokens: 100,
+      supportsImages: false,
+    });
+    // No serverBaseTokens → default path: counts the whole history locally.
+    expect(result.breakdown.history).toBeGreaterThan(0);
+    expect(result.breakdown.system).toBeGreaterThan(0);
+  });
+});
+
 describe("extractToolSequence", () => {
   // Helper function to create mock messages
   const createUserMessage = (content: string): ChatMessage => ({

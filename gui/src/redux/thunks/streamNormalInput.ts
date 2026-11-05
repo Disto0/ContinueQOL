@@ -25,6 +25,7 @@ import { ThunkApiType } from "../store";
 import { constructMessages } from "../util/constructMessages";
 
 import { modelSupportsNativeTools } from "core/llm/toolSupport";
+import { getAnchorKey } from "core/llm/messages";
 import { applyToolOverrides } from "core/tools/applyToolOverrides";
 import { addSystemMessageToolsToSystemMessage } from "core/tools/systemMessageTools/buildToolsSystemMessage";
 import { interceptSystemToolCalls } from "core/tools/systemMessageTools/interceptSystemToolCalls";
@@ -48,6 +49,23 @@ import { streamResponseAfterToolCall } from "./streamResponseAfterToolCall";
  * @param model - The selected model with provider and completion options
  * @returns Completion options with reasoning configuration
  */
+/**
+ * Added by this fork: fingerprint of the NON-NEGOTIABLE parts of a chat request
+ * (system message text + active tool names). The incremental server anchor is
+ * only trusted while this fingerprint is unchanged, because the server's reported
+ * prompt_tokens includes those fixed costs. A different system message or tool
+ * set invalidates the baseline → full local estimate (safe fallback).
+ */
+function computeBaseSignature(
+  systemMessageContent: string | undefined,
+  activeTools: { function: { name: string } }[],
+): string {
+  const systemHash = systemMessageContent ?? "";
+  const toolNames = activeTools.map((t) => t.function.name).sort();
+  // Cheap, collision-resistant enough for an invalidation guard.
+  return `${systemHash.length}:${toolNames.join(",")}`;
+}
+
 function buildReasoningCompletionOptions(
   baseOptions: LLMFullCompletionOptions,
   hasReasoningEnabled: boolean | undefined,
@@ -204,10 +222,27 @@ export const streamNormalInput = createAsyncThunk<
         ? existingCalibration.factor
         : undefined;
 
+    // Added by this fork: incremental server-anchored baseline. Compute a
+    // fingerprint of the NON-NEGOTIABLE parts of this request — the system
+    // message and the active tool set. If they match what the previous request
+    // sent, the server's reported total (serverBaseTokens) still covers them, so
+    // it is safe to trust that baseline and only estimate new messages. If they
+    // changed (system/rules edit, tools enabled/disabled), the baseline is stale
+    // → we send no baseline and the core falls back to a full local estimate.
+    const baseSignature = computeBaseSignature(systemMessage, activeTools);
+    const anchor = state.session.serverAnchor;
+    const anchorIsValid =
+      isIncremental &&
+      !!anchor &&
+      anchor.modelTitle === selectedChatModel.title &&
+      anchor.baseSignature === baseSignature;
+
     const precompiledRes = await extra.ideMessenger.request("llm/compileChat", {
       messages,
       options: completionOptions,
       calibrationFactor,
+      serverBaseTokens: anchorIsValid ? anchor.promptTokens : undefined,
+      anchoredKeys: anchorIsValid ? anchor.anchoredKeys : undefined,
     });
 
     if (precompiledRes.status === "error") {
@@ -319,20 +354,21 @@ export const streamNormalInput = createAsyncThunk<
 
         // Added by this fork: capture the server anchor for incremental mode.
         // The server reported prompt_tokens for exactly `compiledChatMessages`
-        // (the set we just sent). The core echoes each message's stable id back,
-        // so we record those ids as "already counted" — the next request treats
+        // (the set we just sent). The core echoes each message's anchor key back,
+        // so we record those keys as "already counted" — the next request treats
         // these specific messages as known and only estimates newly added ones.
-        // Keying by id (not a count) survives the core re-pruning its older
-        // turns. Only captured when the server actually reported usage; otherwise
-        // the anchor stays absent and the core falls back to a full local estimate.
+        // Keying by id/toolCallId (not a count) survives the core re-pruning its
+        // older turns. baseSignature ties the baseline to the system+tool set so a
+        // later change invalidates it. Only captured when the server reported usage.
         if (isIncremental && serverUsage?.promptTokens) {
-          const anchoredIds = compiledChatMessages
-            .map((m) => m.id)
-            .filter((id): id is string => typeof id === "string");
+          const anchoredKeys = compiledChatMessages
+            .map((m) => getAnchorKey(m))
+            .filter((key): key is string => typeof key === "string");
           dispatch(
             setServerAnchor({
               promptTokens: serverUsage.promptTokens,
-              anchoredIds,
+              anchoredKeys,
+              baseSignature,
               modelTitle: selectedChatModel.title,
             }),
           );

@@ -71,3 +71,30 @@ export function chatMessageIsEmpty(message: ChatMessage): boolean {
       return false;
   }
 }
+
+/**
+ * Added by this fork: a stable identity for a chat message, used by the
+ * incremental context-accounting path to decide which messages the server has
+ * already token-counted (and must therefore NOT be re-estimated locally).
+ *
+ * - A message carrying a client-side id is keyed by that id (set for user,
+ *   assistant and thinking messages, which constructMessages carries through).
+ * - Tool messages are rebuilt fresh every turn (no id), but their `toolCallId`
+ *   is stable across turns, so they are keyed by `tool:<toolCallId>`. Without
+ *   this, agent-mode tool messages already counted by the server would be
+ *   double-counted on top of the server baseline, negating the whole benefit.
+ * - The system message has no id by design and is intentionally left keyless:
+ *   it is part of the server baseline and is never re-counted as a delta.
+ *
+ * Returns undefined for messages that cannot be keyed (system). Callers treat an
+ * unkeyable message as "not a delta" only when a server baseline is present.
+ */
+export function getAnchorKey(message: ChatMessage): string | undefined {
+  if (typeof message.id === "string" && message.id.length > 0) {
+    return message.id;
+  }
+  if (message.role === "tool" && typeof message.toolCallId === "string") {
+    return `tool:${message.toolCallId}`;
+  }
+  return undefined;
+}

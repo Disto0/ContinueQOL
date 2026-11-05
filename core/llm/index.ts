@@ -950,6 +950,8 @@ export abstract class BaseLLM implements ILLM {
     message: ChatMessage[],
     options: LLMFullCompletionOptions,
     calibrationFactor?: number,
+    serverBaseTokens?: number,
+    anchoredKeys?: string[],
   ) {
     let { completionOptions } = this._parseCompletionOptions(options);
     completionOptions = this._modifyCompletionOptions(completionOptions);
@@ -964,6 +966,10 @@ export abstract class BaseLLM implements ILLM {
       // Added by this fork: measured calibration factor from the previous
       // request's server-reported usage (see ContextTokenBreakdown work).
       calibrationFactor,
+      // Added by this fork: incremental server-anchored baseline. When present,
+      // the core trusts these and only estimates messages that are NOT anchored.
+      serverBaseTokens,
+      anchoredKeys,
     });
   }
 

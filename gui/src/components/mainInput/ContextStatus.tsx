@@ -170,7 +170,7 @@ const ContextStatus = () => {
                     <>
                       <span>{`Server anchor: ${formatTokens(
                         serverAnchor.promptTokens,
-                      )} tokens across ${serverAnchor.anchoredIds.length} messages (model: ${serverAnchor.modelTitle})`}</span>
+                      )} tokens across ${serverAnchor.anchoredKeys.length} messages (model: ${serverAnchor.modelTitle})`}</span>
                       <span>{`Next request will trust this baseline and only estimate newly added messages.`}</span>
                     </>
                   ) : (

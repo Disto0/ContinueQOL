@@ -141,6 +141,8 @@ export interface ILLM
     messages: ChatMessage[],
     options: LLMFullCompletionOptions,
     calibrationFactor?: number,
+    serverBaseTokens?: number,
+    anchoredKeys?: string[],
   ): CompiledMessagesResult;
 
   embed(chunks: string[]): Promise<number[][]>;

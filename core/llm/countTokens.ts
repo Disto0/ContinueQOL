@@ -11,6 +11,7 @@ import { autodetectTemplateType } from "./autodetect.js";
 import {
   addSpaceToAnyEmptyMessages,
   chatMessageIsEmpty,
+  getAnchorKey,
   isUserOrToolMsg,
   messageHasToolCallId,
 } from "./messages.js";
@@ -427,6 +428,8 @@ function compileChatMessages({
   supportsImages,
   tools,
   calibrationFactor,
+  serverBaseTokens,
+  anchoredKeys,
 }: {
   modelName: string;
   msgs: ChatMessage[];
@@ -435,6 +438,8 @@ function compileChatMessages({
   supportsImages: boolean;
   tools?: Tool[];
   calibrationFactor?: number;
+  serverBaseTokens?: number;
+  anchoredKeys?: string[];
 }): CompiledMessagesResult {
   let didPrune = false;
 
@@ -499,6 +504,127 @@ function compileChatMessages({
   const contextLength = knownContextLength ?? DEFAULT_PRUNING_LENGTH;
   const countingSafetyBuffer = getTokenCountingBufferSafety(contextLength);
   const minOutputTokens = Math.min(MIN_RESPONSE_TOKENS, maxTokens);
+
+  // Added by this fork: incremental (server-anchored) accounting. When the GUI
+  // supplies the exact prompt_tokens the server reported for the previous turn
+  // AND the anchor keys of the messages it actually counted, the core trusts
+  // that authoritative baseline instead of re-tokenising the whole history with
+  // its inflated local tokenizer. Only genuinely new content (messages whose
+  // anchor key is absent — the just-completed reply, the new user message and
+  // its freshly-gathered context, plus any history that was pruned last turn
+  // and is therefore not in the baseline) is estimated locally. This is what
+  // removes the non-linear inflation that caused spurious out-of-context errors.
+  //
+  // system message and tools are deliberately NOT re-counted here: they are part
+  // of serverBaseTokens and are assumed stable between turns; any change
+  // (model switch, tools/config change, new session) is handled by invalidating
+  // the anchor on the GUI side, which makes serverBaseTokens absent → this
+  // branch is skipped and the full local estimate below is used instead.
+  //
+  // The per-message approximation used when pruning an *anchored* message (its
+  // local count, as a stand-in for its share of the server total) is bounded and
+  // is re-corrected at the next server re-anchor, so errors never accumulate.
+  const anchoredSet = new Set(
+    (anchoredKeys ?? []).filter((k) => typeof k === "string" && k.length > 0),
+  );
+  const isIncremental =
+    serverBaseTokens !== undefined &&
+    Number.isFinite(serverBaseTokens) &&
+    serverBaseTokens > 0 &&
+    anchoredSet.size > 0 &&
+    knownContextLength !== undefined;
+
+  if (isIncremental) {
+    const availableTokens =
+      contextLength - countingSafetyBuffer - minOutputTokens;
+
+    // Local count helper for the delta (NOT calibrated: the baseline already
+    // reflects the server's real tokenizer; only brand-new text is estimated).
+    const localCost = (msg: ChatMessage) =>
+      countChatMessageTokens(modelName, msg);
+    const isAnchored = (msg: ChatMessage) => {
+      const key = getAnchorKey(msg);
+      return key !== undefined && anchoredSet.has(key);
+    };
+
+    // The last user/tool sequence of this turn is protected from pruning (as in
+    // the default path), but its genuinely-new tokens still count toward the
+    // total we send, so sum only the unanchored part of it.
+    let lastSequenceDelta = 0;
+    for (const msg of toolSequence) {
+      if (isAnchored(msg)) continue;
+      lastSequenceDelta += localCost(msg);
+    }
+
+    // History candidates contribute only their delta (0 if already in baseline).
+    // removalCredit is always the local count: for an anchored message it stands
+    // in for that message's share of the server total when it gets dropped.
+    let currentDelta = 0;
+    const historyWithTokens = msgsCopy.map((message) => {
+      const anchored = isAnchored(message);
+      const delta = anchored ? 0 : localCost(message);
+      currentDelta += delta;
+      return {
+        ...message,
+        tokens: delta,
+        anchored,
+        removalCredit: localCost(message),
+      };
+    });
+
+    // Real prompt size this turn = trusted server baseline + new delta.
+    let realTotal = serverBaseTokens + lastSequenceDelta + currentDelta;
+
+    while (historyWithTokens.length > 0 && realTotal > availableTokens) {
+      const message = historyWithTokens.shift()!;
+      realTotal -= message.anchored ? message.removalCredit : message.tokens;
+      didPrune = true;
+
+      // No latent tool response without its corresponding call.
+      while (historyWithTokens[0]?.role === "tool") {
+        const toolMessage = historyWithTokens.shift()!;
+        realTotal -= toolMessage.anchored
+          ? toolMessage.removalCredit
+          : toolMessage.tokens;
+      }
+    }
+
+    const remainingDelta = historyWithTokens.reduce(
+      (sum, m) => sum + m.tokens,
+      0,
+    );
+
+    const reassembledIncremental: ChatMessage[] = [];
+    if (systemMsg) {
+      reassembledIncremental.push(systemMsg);
+    }
+    reassembledIncremental.push(
+      ...historyWithTokens.map(
+        ({ tokens, anchored, removalCredit, ...rest }) => rest,
+      ),
+    );
+    reassembledIncremental.push(...toolSequence);
+
+    const inputTokens = realTotal;
+    const contextPercentage =
+      availableTokens > 0 ? inputTokens / availableTokens : 1;
+    return {
+      compiledChatMessages: reassembledIncremental,
+      didPrune,
+      contextPercentage,
+      inputTokens,
+      availableTokens,
+      contextLength,
+      // system/tools/anchored-history are fused into the trusted server
+      // baseline, so only the locally-estimated delta is separable here.
+      breakdown: {
+        system: 0,
+        tools: 0,
+        history: remainingDelta,
+        lastSequence: lastSequenceDelta,
+      },
+    };
+  }
 
   let inputTokensAvailable = contextLength;
 

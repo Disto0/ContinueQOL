@@ -246,6 +246,14 @@ export type ToCoreFromIdeOrWebviewProtocol = {
       messages: ChatMessage[];
       options: LLMFullCompletionOptions;
       calibrationFactor?: number;
+      /**
+       * Added by this fork (incremental mode): the exact prompt_tokens the server
+       * reported for the previous request, and the anchor keys of the messages it
+       * actually counted. When present, the core trusts this baseline and only
+       * estimates newly added messages instead of re-tokenising the whole history.
+       */
+      serverBaseTokens?: number;
+      anchoredKeys?: string[];
     },
     CompiledMessagesResult,
   ];
