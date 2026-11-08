@@ -306,6 +306,27 @@ export interface Session {
   contextPercentage?: number;
   /** Optional: measured token calibration (factor + model it was measured for). */
   tokenCalibration?: { factor: number; modelTitle: string };
+  /**
+   * Optional: the server-anchored token baseline used by incremental mode, added
+   * by this fork. Persisted so an anchored session keeps its server-referenced
+   * accounting across a reload instead of paying a full local estimate on the
+   * first send back. Mirrors the GUI `SessionState.serverAnchor`. Recalculated
+   * and re-validated (model + system/tools fingerprint) on the next request.
+   */
+  serverAnchor?: {
+    promptTokens: number;
+    anchoredKeys: string[];
+    baseSignature: string;
+    modelTitle: string;
+  };
+  /**
+   * Optional: the GUI-owned context window (see ContextWindowState), added by
+   * this fork. Persisted so the set of kept/pinned turns and the suppressed
+   * core-cut turns survive a reload; without this, a reloaded session would
+   * re-introduce cut turns once and re-create the phantom delta. Optional so
+   * sessions saved before this change load unchanged.
+   */
+  windowState?: ContextWindowState;
 }
 
 export interface BaseSessionMetadata {

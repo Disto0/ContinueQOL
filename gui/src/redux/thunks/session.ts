@@ -260,6 +260,12 @@ export const saveCurrentSession = createAsyncThunk<
       contextTokens: session.contextTokens,
       contextPercentage: session.contextPercentage,
       tokenCalibration: session.tokenCalibration,
+      // Added by this fork (2b-3): persist the incremental server anchor and the
+      // GUI context window so a reloaded session keeps its server-referenced
+      // accounting and does not re-introduce core-cut turns (which would
+      // re-create the phantom delta). Both are re-validated on the next send.
+      serverAnchor: session.serverAnchor,
+      windowState: session.windowState,
     };
 
     const result = await dispatch(updateSession(updatedSession));

@@ -179,6 +179,17 @@ export class HistoryManager {
     if (session.tokenCalibration !== undefined) {
       orderedSession.tokenCalibration = session.tokenCalibration;
     }
+    // Added by this fork (2b-3): persist the incremental server anchor and the
+    // GUI context window so a reloaded incremental session keeps its
+    // server-referenced accounting and does not re-introduce core-cut turns
+    // (which would re-create the phantom delta). Without copying them here the
+    // explicit rebuild above would silently drop them before JSON.stringify.
+    if (session.serverAnchor !== undefined) {
+      orderedSession.serverAnchor = session.serverAnchor;
+    }
+    if (session.windowState !== undefined) {
+      orderedSession.windowState = session.windowState;
+    }
 
     fs.writeFileSync(
       getSessionFilePath(session.sessionId),

@@ -786,6 +786,13 @@ export const sessionSlice = createSlice({
         state.contextTokens = payload.contextTokens;
         state.contextPercentage = payload.contextPercentage;
         state.tokenCalibration = payload.tokenCalibration;
+        // Added by this fork (2b-3): restore the incremental anchor + window so a
+        // reloaded session keeps its server-referenced accounting and does not
+        // re-introduce core-cut turns. The anchor is re-validated (model +
+        // system/tools fingerprint) on the next send, so a stale one is simply
+        // not trusted rather than applied wrongly.
+        state.serverAnchor = payload.serverAnchor;
+        state.windowState = payload.windowState;
       } else {
         state.history = [];
         state.title = NEW_SESSION_TITLE;
