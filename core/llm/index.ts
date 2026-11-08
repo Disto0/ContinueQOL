@@ -952,6 +952,7 @@ export abstract class BaseLLM implements ILLM {
     calibrationFactor?: number,
     serverBaseTokens?: number,
     anchoredKeys?: string[],
+    pinnedKeys?: string[],
   ) {
     let { completionOptions } = this._parseCompletionOptions(options);
     completionOptions = this._modifyCompletionOptions(completionOptions);
@@ -970,6 +971,9 @@ export abstract class BaseLLM implements ILLM {
       // the core trusts these and only estimates messages that are NOT anchored.
       serverBaseTokens,
       anchoredKeys,
+      // Added by this fork (2c-5): GUI-pinned keys, so the incremental hard guard
+      // cuts non-pinned turns first and only force-cuts pinned ones last.
+      pinnedKeys,
     });
   }
 

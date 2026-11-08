@@ -254,6 +254,14 @@ export type ToCoreFromIdeOrWebviewProtocol = {
        */
       serverBaseTokens?: number;
       anchoredKeys?: string[];
+      /**
+       * Added by this fork (2c-5): ids the GUI has pinned in its context window.
+       * When the incremental hard guard must cut history to fit availableTokens,
+       * the core drops non-pinned turns first and only force-cuts pinned turns as
+       * a last resort (pin = soft guarantee). Select stays a GUI decision; the
+       * core only enforces.
+       */
+      pinnedKeys?: string[];
     },
     CompiledMessagesResult,
   ];

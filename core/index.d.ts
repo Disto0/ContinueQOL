@@ -143,6 +143,7 @@ export interface ILLM
     calibrationFactor?: number,
     serverBaseTokens?: number,
     anchoredKeys?: string[],
+    pinnedKeys?: string[],
   ): CompiledMessagesResult;
 
   embed(chunks: string[]): Promise<number[][]>;

@@ -431,6 +431,7 @@ function compileChatMessages({
   calibrationFactor,
   serverBaseTokens,
   anchoredKeys,
+  pinnedKeys,
 }: {
   modelName: string;
   msgs: ChatMessage[];
@@ -441,6 +442,7 @@ function compileChatMessages({
   calibrationFactor?: number;
   serverBaseTokens?: number;
   anchoredKeys?: string[];
+  pinnedKeys?: string[];
 }): CompiledMessagesResult {
   let didPrune = false;
 
@@ -576,18 +578,62 @@ function compileChatMessages({
     // Real prompt size this turn = trusted server baseline + new delta.
     let realTotal = serverBaseTokens + lastSequenceDelta + currentDelta;
 
-    while (historyWithTokens.length > 0 && realTotal > availableTokens) {
-      const message = historyWithTokens.shift()!;
-      realTotal -= message.anchored ? message.removalCredit : message.tokens;
-      didPrune = true;
+    // Added by this fork (2c-5): pinned-aware hard guard. Select is a GUI
+    // decision; the core only enforces the availableTokens ceiling. When it must
+    // cut, it drops the OLDEST NON-PINNED turn first, and only force-cuts a
+    // PINNED turn as a last resort (pin = soft guarantee, matching select-GUI /
+    // enforce-core). Cutting happens at whole-turn granularity (a head message +
+    // its contiguous tool responses) so a tool output is never orphaned from its
+    // assistant tool-call. The last user/tool sequence is already excluded from
+    // historyWithTokens (extractToolSequence), so it is never cut here.
+    const pinnedSet = new Set(
+      (pinnedKeys ?? []).filter((k) => typeof k === "string" && k.length > 0),
+    );
+    const isPinned = (msg: ChatMessage) => {
+      const key = getAnchorKey(msg);
+      return key !== undefined && pinnedSet.has(key);
+    };
 
-      // No latent tool response without its corresponding call.
-      while (historyWithTokens[0]?.role === "tool") {
-        const toolMessage = historyWithTokens.shift()!;
-        realTotal -= toolMessage.anchored
-          ? toolMessage.removalCredit
-          : toolMessage.tokens;
+    const creditOf = (msg: {
+      anchored: boolean;
+      tokens: number;
+      removalCredit: number;
+    }) => (msg.anchored ? msg.removalCredit : msg.tokens);
+
+    while (historyWithTokens.length > 0 && realTotal > availableTokens) {
+      // Find the start index of the oldest turn-group whose HEAD is not pinned.
+      // A group head is any non-tool entry (tool entries belong to the head
+      // above them). If every head is pinned, force-cut the oldest group.
+      let groupStart = -1;
+      for (let i = 0; i < historyWithTokens.length; i++) {
+        if (historyWithTokens[i].role === "tool") {
+          continue; // not a group head
+        }
+        if (!isPinned(historyWithTokens[i])) {
+          groupStart = i;
+          break;
+        }
       }
+      if (groupStart === -1) {
+        // All heads pinned: cut the oldest group anyway (soft guarantee).
+        groupStart = historyWithTokens.findIndex((m) => m.role !== "tool");
+        if (groupStart === -1) {
+          groupStart = 0;
+        }
+      }
+
+      // Extend the group over its contiguous tool responses (never orphan a tool
+      // output from the assistant that produced it).
+      let groupEnd = groupStart + 1;
+      while (historyWithTokens[groupEnd]?.role === "tool") {
+        groupEnd++;
+      }
+
+      for (let k = groupStart; k < groupEnd; k++) {
+        realTotal -= creditOf(historyWithTokens[k]);
+      }
+      historyWithTokens.splice(groupStart, groupEnd - groupStart);
+      didPrune = true;
     }
 
     const remainingDelta = historyWithTokens.reduce(

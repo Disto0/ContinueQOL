@@ -252,6 +252,14 @@ export const streamNormalInput = createAsyncThunk<
       calibrationFactor,
       serverBaseTokens: anchorIsValid ? anchor.promptTokens : undefined,
       anchoredKeys: anchorIsValid ? anchor.anchoredKeys : undefined,
+      // Added by this fork (2c-5): pass the GUI-pinned ids so the core's
+      // hard guard cuts non-pinned turns first and only force-cuts pinned ones
+      // last. Omitted (undefined) when nothing is pinned, so the payload stays
+      // byte-identical to before for sessions without pins (matches the
+      // existing anchoredKeys/serverBaseTokens undefined pattern).
+      pinnedKeys: state.session.windowState?.pinnedIds?.length
+        ? state.session.windowState.pinnedIds
+        : undefined,
     });
 
     if (precompiledRes.status === "error") {

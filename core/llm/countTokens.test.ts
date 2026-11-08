@@ -264,6 +264,56 @@ describe("compileChatMessages (incremental, server-anchored)", () => {
     expect(keptIds).not.toContain("old-1"); // oldest dropped first
   });
 
+  it("pinned history is protected: cuts the oldest NON-pinned turn first (2c-5)", () => {
+    // Same overflow as the prune test above, but old-1 (the oldest turn) is
+    // pinned. The hard guard must therefore drop the oldest NON-pinned turn
+    // (old-2) and keep the pinned old-1, proving select-GUI / enforce-core:
+    // the core only enforces the ceiling and respects the GUI's pins first.
+    const result = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 12000,
+      maxTokens: 100,
+      supportsImages: false,
+      serverBaseTokens: 11800,
+      anchoredKeys,
+      pinnedKeys: ["old-1"],
+    });
+
+    expect(result.didPrune).toBe(true);
+    expect(result.inputTokens).toBeLessThanOrEqual(result.availableTokens);
+    const keptIds = result.compiledChatMessages
+      .filter((m) => m.role !== "system")
+      .map((m) => (m as any).id);
+    expect(keptIds).toContain("new-1"); // protected last sequence
+    expect(keptIds).toContain("old-1"); // pinned turn survives pruning
+    expect(keptIds).not.toContain("old-2"); // oldest non-pinned dropped first
+  });
+
+  it("force-cuts pinned turns only as a last resort (2c-5 soft guarantee)", () => {
+    // Pin EVERY anchored turn with a budget that cannot fit them all. The guard
+    // must still prune to stay under availableTokens (pin is a SOFT guarantee),
+    // but only after it has no non-pinned turn left to drop.
+    const result = compileChatMessages({
+      modelName: "gpt-4",
+      msgs: [...msgs],
+      knownContextLength: 12000,
+      maxTokens: 100,
+      supportsImages: false,
+      serverBaseTokens: 11800,
+      anchoredKeys,
+      pinnedKeys: ["old-1", "old-2", "old-3", "old-4"],
+    });
+
+    expect(result.didPrune).toBe(true);
+    expect(result.inputTokens).toBeLessThanOrEqual(result.availableTokens);
+    const keptIds = result.compiledChatMessages
+      .filter((m) => m.role !== "system")
+      .map((m) => (m as any).id);
+    // Some pinned turn(s) had to be force-cut to honor the hard ceiling.
+    expect(keptIds).not.toContain("old-1");
+  });
+
   it("falls back to the full local estimate when no baseline is provided", () => {
     const result = compileChatMessages({
       modelName: "gpt-4",

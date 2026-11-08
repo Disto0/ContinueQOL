@@ -605,6 +605,7 @@ export class Core {
         calibrationFactor,
         serverBaseTokens,
         anchoredKeys,
+        pinnedKeys,
       } = msg.data;
       const model = (await this.configHandler.loadConfig()).config
         ?.selectedModelByRole.chat;
@@ -619,6 +620,7 @@ export class Core {
         calibrationFactor,
         serverBaseTokens,
         anchoredKeys,
+        pinnedKeys,
       );
     });
 
