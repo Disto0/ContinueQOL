@@ -15,6 +15,7 @@ import {
   setContextTokens,
   setTokenCalibration,
   setServerAnchor,
+  setWindowState,
   setInactive,
   setInlineErrorMessage,
   setIsPruned,
@@ -23,6 +24,7 @@ import {
 } from "../slices/sessionSlice";
 import { ThunkApiType } from "../store";
 import { constructMessages } from "../util/constructMessages";
+import { selectWindowHistory } from "../util/selectWindowHistory";
 
 import { modelSupportsNativeTools } from "core/llm/toolSupport";
 import { getAnchorKey } from "core/llm/messages";
@@ -175,14 +177,36 @@ export const streamNormalInput = createAsyncThunk<
     const isCalibration = contextTokenMode === "calibration";
     const isIncremental = contextTokenMode === "incremental";
 
+    // Added by this fork: incremental server-anchored baseline + GUI context
+    // window. Compute the fingerprint of the NON-NEGOTIABLE parts (system message
+    // text + active tool names) up front, because it gates both the trusted server
+    // baseline and the window filter below. If system/tools/model match the last
+    // send, the previous server prompt_tokens still covers the fixed costs, so it
+    // is safe to trust that baseline, keep only the turns the core actually kept,
+    // and add the genuinely-new ones. If they changed, the baseline is stale → we
+    // send no baseline AND the full history, and the core falls back to a full
+    // local estimate (safe).
+    const baseSignature = computeBaseSignature(systemMessage, activeTools);
+    const anchor = state.session.serverAnchor;
+    const anchorIsValid =
+      isIncremental &&
+      !!anchor &&
+      anchor.modelTitle === selectedChatModel.title &&
+      anchor.baseSignature === baseSignature;
+
     // Added by this fork: in incremental mode only, keep each message's stable
     // client-side id on the history we compile. The core echoes those ids back on
-    // compiledChatMessages and the server anchor records which ids it counted, so
-    // the next request can tell already-counted messages from newly added ones.
-    // Providers only serialize explicit fields, so ids never reach the API. In the
-    // other modes ids are stripped exactly as before, keeping the payload identical.
+    // compiledChatMessages so the server anchor and the window can record which
+    // turns it kept. Providers only serialize explicit fields, so ids never reach
+    // the API. When a valid window exists, we ALSO drop turns the core cut last
+    // turn (never re-introduce them — re-sending cut turns is what created the
+    // phantom re-count), keeping the active exchange always. In the other modes
+    // ids are stripped exactly as before, keeping the payload identical.
     const historyForCompile = isIncremental
-      ? state.session.history
+      ? selectWindowHistory(
+          state.session.history,
+          anchorIsValid ? state.session.windowState : undefined,
+        )
       : state.session.history.map((item) => {
           const { id, ...messageWithoutId } = item.message;
           return { ...item, message: messageWithoutId };
@@ -221,21 +245,6 @@ export const streamNormalInput = createAsyncThunk<
       existingCalibration.modelTitle === selectedChatModel.title
         ? existingCalibration.factor
         : undefined;
-
-    // Added by this fork: incremental server-anchored baseline. Compute a
-    // fingerprint of the NON-NEGOTIABLE parts of this request — the system
-    // message and the active tool set. If they match what the previous request
-    // sent, the server's reported total (serverBaseTokens) still covers them, so
-    // it is safe to trust that baseline and only estimate new messages. If they
-    // changed (system/rules edit, tools enabled/disabled), the baseline is stale
-    // → we send no baseline and the core falls back to a full local estimate.
-    const baseSignature = computeBaseSignature(systemMessage, activeTools);
-    const anchor = state.session.serverAnchor;
-    const anchorIsValid =
-      isIncremental &&
-      !!anchor &&
-      anchor.modelTitle === selectedChatModel.title &&
-      anchor.baseSignature === baseSignature;
 
     const precompiledRes = await extra.ideMessenger.request("llm/compileChat", {
       messages,
@@ -370,6 +379,43 @@ export const streamNormalInput = createAsyncThunk<
               anchoredKeys,
               baseSignature,
               modelTitle: selectedChatModel.title,
+            }),
+          );
+
+          // Added by this fork (2c-4): record the GUI-owned window so the NEXT
+          // incremental request re-sends only what the core actually kept plus the
+          // genuinely-new turns, and never re-introduces a turn the core cut this
+          // turn. includedIds = every anchor key the core kept in the compiled set
+          // (it may have dropped older turns via the hard guard); knownIds = every
+          // key we were aware of when sending. knownIds \ includedIds is precisely
+          // the set of cut turns to suppress next turn. nodeCosts merges the core's
+          // per-node counts so the GUI can budget a window later (2c) without a
+          // tokenizer. This is the fix for the phantom delta that pinned the bar at
+          // ~100% despite a valid server anchor.
+          const previousWindow = getState().session.windowState;
+          const nodeCosts: Record<string, number> = {
+            ...(previousWindow?.nodeCosts ?? {}),
+          };
+          for (const { key, tokens } of precompiledRes.content.nodeCosts ??
+            []) {
+            nodeCosts[key] = tokens;
+          }
+          const knownKeys = new Set<string>(previousWindow?.knownIds ?? []);
+          for (const item of historyForCompile) {
+            const key = getAnchorKey(item.message);
+            if (typeof key === "string") {
+              knownKeys.add(key);
+            }
+          }
+          dispatch(
+            setWindowState({
+              includedIds: anchoredKeys,
+              pinnedIds: previousWindow?.pinnedIds ?? [],
+              knownIds: Array.from(knownKeys),
+              nodeCosts,
+              baseSignature,
+              modelTitle: selectedChatModel.title,
+              updatedAt: Date.now(),
             }),
           );
         }

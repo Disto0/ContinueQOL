@@ -15,6 +15,7 @@ import {
   ContextItem,
   ContextItemWithId,
   ContextTokenBreakdown,
+  ContextWindowState,
   FileSymbolMap,
   McpUiState,
   MessageModes,
@@ -255,6 +256,16 @@ type SessionState = {
     baseSignature: string;
     modelTitle: string;
   };
+  // Added by this fork: the GUI-owned context window (select-GUI / enforce-core).
+  // In incremental mode it records which history turns the core actually KEPT on
+  // the last send (includedIds), which turns it CUT (implied by knownIds minus
+  // includedIds), and the cached per-node token costs. The next incremental send
+  // sends only (kept ∪ genuinely-new) turns and never re-introduces cut ones —
+  // this is what removes the phantom re-count that kept the context pinned at
+  // ~100% despite the server anchor. Tree-ready: addressed by node id, with a
+  // reserved parentId in the core node type for future sub-conversations. Reset
+  // alongside serverAnchor wherever the message set changes. Not yet persisted.
+  windowState?: ContextWindowState;
   inlineErrorMessage?: InlineErrorMessageType;
   compactionLoading: Record<number, boolean>; // Track compaction loading by message index
 };
@@ -475,6 +486,7 @@ export const sessionSlice = createSlice({
         state.contextTokens = undefined;
         state.tokenCalibration = undefined;
         state.serverAnchor = undefined;
+        state.windowState = undefined;
       }
     },
     deleteMessage: (state, action: PayloadAction<number>) => {
@@ -486,6 +498,7 @@ export const sessionSlice = createSlice({
       state.contextTokens = undefined;
       state.tokenCalibration = undefined;
       state.serverAnchor = undefined;
+      state.windowState = undefined;
     },
     deleteCompaction: (state, action: PayloadAction<number>) => {
       // Removes the conversation summary from the specified message
@@ -758,6 +771,7 @@ export const sessionSlice = createSlice({
       state.contextTokens = undefined;
       state.tokenCalibration = undefined;
       state.serverAnchor = undefined;
+      state.windowState = undefined;
 
       if (payload) {
         state.history = payload.history as any;
@@ -1088,6 +1102,12 @@ export const sessionSlice = createSlice({
     ) => {
       state.serverAnchor = action.payload;
     },
+    setWindowState: (
+      state,
+      action: PayloadAction<SessionState["windowState"]>,
+    ) => {
+      state.windowState = action.payload;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1179,6 +1199,7 @@ export const {
   setContextTokens,
   setTokenCalibration,
   setServerAnchor,
+  setWindowState,
   setCompactionLoading,
 } = sessionSlice.actions;
 

@@ -2106,6 +2106,15 @@ export interface ContextWindowState {
   includedIds: string[];
   pinnedIds: string[];
   nodeCosts: Record<string, number>;
+  /**
+   * Every history-item id the GUI was aware of at the last incremental send. The
+   * difference (current ids \ knownIds) is what is GENUINELY new this turn and
+   * must be sent; the set (knownIds \ includedIds) is what the core CUT last turn
+   * and must NOT be re-introduced (re-sending cut nodes is what created a phantom
+   * delta last time). Distinguishing these two is the whole point of tracking
+   * knownIds alongside includedIds.
+   */
+  knownIds?: string[];
   baseSignature?: string;
   modelTitle?: string;
   updatedAt?: number;
