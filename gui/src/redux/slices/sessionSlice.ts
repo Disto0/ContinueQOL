@@ -1122,26 +1122,24 @@ export const sessionSlice = createSlice({
       // cuts pinned turns last (soft guarantee). Keys the pin by each message's
       // stable anchor key (message id), matching what selectWindowHistory keeps and
       // what the core receives as pinnedKeys, so a pin survives reloads and a core
-      // re-prune. Pins the whole exchange: the assistant response at `index` plus
-      // its immediately preceding user prompt (the pair deleteMessage treats as one
-      // turn). Creates a windowState if none exists yet (a pin is valid even before
-      // the first incremental send / in any mode).
+      // re-prune. Pins the WHOLE turn: from the clicked assistant back through any
+      // thinking/tool items until (and including) the most recent user prompt. This
+      // is why agent-mode chains are covered: the assistant may be preceded by tool
+      // outputs rather than the user directly, so walking back to the user guarantees
+      // the user prompt is pinned too (previously only index-1 was, which could be a
+      // tool, leaving the prompt unpinned). Creates a windowState if none exists yet.
       const index = action.payload;
-      const assistant = state.history[index];
-      if (!assistant) {
+      if (!state.history[index]) {
         return;
       }
       const keys: string[] = [];
-      const assistantKey = getAnchorKey(assistant.message);
-      if (assistantKey !== undefined) {
-        keys.push(assistantKey);
-      }
-      // Protect the paired user prompt too (the turn deleteMessage removes as one).
-      const user = state.history[index - 1];
-      if (user && user.message.role === "user") {
-        const userKey = getAnchorKey(user.message);
-        if (userKey !== undefined) {
-          keys.push(userKey);
+      for (let i = index; i >= 0; i--) {
+        const key = getAnchorKey(state.history[i].message);
+        if (key !== undefined) {
+          keys.push(key);
+        }
+        if (state.history[i].message.role === "user") {
+          break; // include this user prompt, then stop the turn
         }
       }
       if (keys.length === 0) {

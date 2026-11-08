@@ -512,4 +512,43 @@ describe("sessionSlice togglePinMessage (2c-5 select-side pinning)", () => {
     expect(state.windowState?.pinnedIds).not.toContain("a-1");
     expect(state.windowState?.pinnedIds).not.toContain("u-1");
   });
+
+  it("pins the whole agent chain back to the user prompt", () => {
+    // user -> assistant -> tool -> assistant; pinning the LAST assistant must walk
+    // back through the tool and intermediate assistant to the originating user, so
+    // the user prompt is pinned too (not just the assistant immediately before it).
+    const agentHistory = [
+      {
+        message: { role: "user" as const, content: "prompt", id: "u-1" },
+        contextItems: [],
+      },
+      {
+        message: { role: "assistant" as const, content: "call", id: "a-1" },
+        contextItems: [],
+      },
+      {
+        message: {
+          role: "tool" as const,
+          content: "out",
+          toolCallId: "tc-1",
+          id: "t-1",
+        },
+        contextItems: [],
+      },
+      {
+        message: { role: "assistant" as const, content: "final", id: "a-2" },
+        contextItems: [],
+      },
+    ] as ChatHistoryItemWithMessageId[];
+    const state = sessionSlice.reducer(
+      { ...baseState(), history: agentHistory },
+      {
+        type: "session/togglePinMessage",
+        payload: 3, // the last assistant
+      },
+    );
+    expect(state.windowState?.pinnedIds).toEqual(
+      expect.arrayContaining(["a-2", "t-1", "a-1", "u-1"]),
+    );
+  });
 });

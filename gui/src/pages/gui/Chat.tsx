@@ -135,6 +135,15 @@ export function Chat() {
   );
   const windowState = useAppSelector((state) => state.session.windowState);
 
+  // Added by this fork: index of the latest conversation summary, hoisted to the
+  // Chat level so the per-item visual feedback can tell a COMPACTED message (an
+  // older message replaced by a summary, dimmed with a horizontal divider) apart
+  // from a PRUNED one (out of the incremental window). -1 when never compacted.
+  const latestSummaryIndex = useMemo(
+    () => findLatestSummaryIndex(history),
+    [history],
+  );
+
   const lastSessionId = useAppSelector((state) => state.session.lastSessionId);
   const hasDismissedExploreDialog = useAppSelector(
     (state) => state.ui.hasDismissedExploreDialog,
@@ -395,14 +404,15 @@ export function Chat() {
   // instead of Tailwind border classes because a user prompt renders as a card
   // (GradientBorder/ContinueInputBox) with its own rounded border and padding,
   // which swallowed an outer Tailwind left-border and looked like a stub.
-  // States are distinguished primarily by COLOR so pruning is not confusable
-  // with compaction (which uses a neutral gray dim + a horizontal "Compacted"
-  // divider and never a left bar or tint):
-  //  - pinned : key in windowState.pinnedIds       -> yellow left bar + tint
-  //  - pruned : known last turn but NOT kept/pinned -> rose left bar + tint + faded
-  // Pinned wins over pruned; never-sent items get no marker.
+  // Three distinct states, by COLOR, so prune is not confusable with compaction:
+  //  - pinned    : key in windowState.pinnedIds          -> yellow bar  + yellow tint
+  //  - compacted : older message superseded by a summary -> blue bar    + blue tint + dim
+  //  - pruned    : known last turn but NOT kept/pinned    -> rose bar    + rose tint + faded
+  // Priority pinned > compacted > pruned. Never-sent items get no marker.
+  // Compaction is now blue (not rose) specifically because compacted messages also
+  // fall outside includedIds and would otherwise render identical to pruned ones.
   const getWindowVisualStyle = useCallback(
-    (item: ChatHistoryItemWithMessageId): CSSProperties => {
+    (item: ChatHistoryItemWithMessageId, index: number): CSSProperties => {
       if (contextTokenMode !== "incremental" || !windowState) {
         return {};
       }
@@ -413,7 +423,14 @@ export function Chat() {
       if (windowState.pinnedIds.includes(key)) {
         return {
           borderLeft: "4px solid #eab308", // yellow-500
-          background: "rgba(234, 179, 8, 0.08)",
+          background: "rgba(234, 179, 8, 0.10)",
+        };
+      }
+      if (latestSummaryIndex !== -1 && index <= latestSummaryIndex) {
+        return {
+          borderLeft: "4px solid #3b82f6", // blue-500
+          background: "rgba(59, 130, 246, 0.10)",
+          opacity: 0.6,
         };
       }
       if (
@@ -422,13 +439,13 @@ export function Chat() {
       ) {
         return {
           borderLeft: "4px solid #f43f5e", // rose-500
-          background: "rgba(244, 63, 94, 0.08)",
-          opacity: 0.55,
+          background: "rgba(244, 63, 94, 0.10)",
+          opacity: 0.7,
         };
       }
       return {};
     },
-    [contextTokenMode, windowState],
+    [contextTokenMode, windowState, latestSummaryIndex],
   );
 
   const showScrollbar = showChatScrollbar ?? window.innerHeight > 5000;
@@ -454,7 +471,7 @@ export function Chat() {
               key={item.message.id}
               style={{
                 minHeight: index === history.length - 1 ? "200px" : 0,
-                ...getWindowVisualStyle(item),
+                ...getWindowVisualStyle(item, index),
               }}
             >
               <ErrorBoundary
