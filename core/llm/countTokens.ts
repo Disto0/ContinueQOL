@@ -5,6 +5,7 @@ import {
   CompiledMessagesResult,
   MessageContent,
   MessagePart,
+  NodeTokenCost,
   Tool,
 } from "../index.js";
 import { autodetectTemplateType } from "./autodetect.js";
@@ -608,6 +609,19 @@ function compileChatMessages({
     const inputTokens = realTotal;
     const contextPercentage =
       availableTokens > 0 ? inputTokens / availableTokens : 1;
+
+    // Added by this fork: surface per-node token costs keyed by anchor key so the
+    // GUI can cache them and budget its own window next turn (select-GUI side).
+    // These are the core's LOCAL counts (granular fallback); the GUI upgrades
+    // them with exact server-derived costs whenever a turn is append-only.
+    const nodeCosts: NodeTokenCost[] = [];
+    for (const msg of reassembledIncremental) {
+      const key = getAnchorKey(msg);
+      if (key !== undefined) {
+        nodeCosts.push({ key, tokens: localCost(msg) });
+      }
+    }
+
     return {
       compiledChatMessages: reassembledIncremental,
       didPrune,
@@ -623,6 +637,7 @@ function compileChatMessages({
         history: remainingDelta,
         lastSequence: lastSequenceDelta,
       },
+      nodeCosts,
     };
   }
 

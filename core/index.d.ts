@@ -609,6 +609,14 @@ export interface ChatHistoryItem {
    * sessions persisted before this change (and hand-built mocks) stay valid.
    */
   timestamp?: number;
+  /**
+   * Added by this fork (reserved for conversation tree / sub-conversations):
+   * the id of the history item this one branches from, when it is a child
+   * sub-conversation. Undefined means "main conversation spine". Optional so
+   * existing flat sessions and hand-built mocks are unaffected. Reserved now so
+   * the tree feature later is a fill-in, not a rework of the node shape.
+   */
+  parentId?: string;
 }
 
 export interface LLMFullCompletionOptions extends BaseCompletionOptions {
@@ -2053,6 +2061,12 @@ export interface CompiledMessagesResult {
   availableTokens?: number;
   contextLength?: number;
   breakdown?: ContextTokenBreakdown;
+  /**
+   * Added by this fork: per-node token costs keyed by anchor key (see
+   * NodeTokenCost). The GUI caches these to budget its own context window
+   * (select-GUI / enforce-core). Optional so existing mocks/tests keep compiling.
+   */
+  nodeCosts?: NodeTokenCost[];
 }
 
 export interface ContextTokenBreakdown {
@@ -2060,6 +2074,41 @@ export interface ContextTokenBreakdown {
   tools: number;
   history: number;
   lastSequence: number;
+}
+
+/**
+ * Added by this fork: per-node token cost, keyed by the same stable anchor key
+ * the server baseline uses (message id, or tool:<toolCallId>). The core already
+ * computes each message's cost internally while compiling; surfacing it lets the
+ * GUI cache real costs and budget its own context window without owning a
+ * tokenizer. Optional so existing mocks/tests that build results by hand are
+ * unaffected.
+ */
+export interface NodeTokenCost {
+  key: string;
+  tokens: number;
+}
+
+/**
+ * Added by this fork: the GUI-owned context window (the "select" side of
+ * select-GUI / enforce-core). Addresses nodes by stable id (tree-ready), not by
+ * array index, so conversation tree / sub-conversations later is a fill-in.
+ * - includedIds: ids of history items the GUI chose to send (order = history order)
+ * - pinnedIds: ids never excluded by policy (soft: the core may still force-cut
+ *   them last if the hard guard fires)
+ * - nodeCosts: cached per-node token costs (server-derived when append-only,
+ *   else core-calibrated fallback) used to budget the window
+ * - baseSignature/modelTitle: fingerprint that invalidates cached costs when the
+ *   non-negotiable system+tools set or the model changes (totor counts differ)
+ * Optional / never required by the core; it is GUI policy persisted for reloads.
+ */
+export interface ContextWindowState {
+  includedIds: string[];
+  pinnedIds: string[];
+  nodeCosts: Record<string, number>;
+  baseSignature?: string;
+  modelTitle?: string;
+  updatedAt?: number;
 }
 
 export interface AddToChatPayload {
