@@ -7,6 +7,7 @@ import { ChatHistoryItem, InputModifiers } from "core";
 import { getAnchorKey } from "core/llm/messages";
 import { renderChatMessage } from "core/util/messageContent";
 import {
+  CSSProperties,
   useCallback,
   useContext,
   useEffect,
@@ -388,33 +389,44 @@ export function Chat() {
     [sendInput, isLastUserInput, history, stepsOpen, isStreaming],
   );
 
-  // Added by this fork: per-message visual feedback class for the GUI context
-  // window (incremental only). Applied to the wrapper that holds EACH history
-  // item (user prompt or assistant reply), so an exchange reads consistently:
-  //  - pinned : key in windowState.pinnedIds            -> yellow left bar
-  //  - pruned : known last turn but NOT kept and NOT pinned (the core cut it and
-  //            we do not re-send it)                    -> dimmed + grey left bar
-  // Pinned wins over pruned; never-sent items get no marker. The vertical left
-  // bar dissocates these from compacted messages (horizontal "Compacted" divider).
-  const getWindowVisualClass = useCallback(
-    (item: ChatHistoryItemWithMessageId): string => {
+  // Added by this fork: per-message visual feedback for the GUI context window
+  // (incremental only), applied as INLINE styles on the per-item wrapper (which
+  // wraps BOTH the user prompt and the assistant reply). Inline styles are used
+  // instead of Tailwind border classes because a user prompt renders as a card
+  // (GradientBorder/ContinueInputBox) with its own rounded border and padding,
+  // which swallowed an outer Tailwind left-border and looked like a stub.
+  // States are distinguished primarily by COLOR so pruning is not confusable
+  // with compaction (which uses a neutral gray dim + a horizontal "Compacted"
+  // divider and never a left bar or tint):
+  //  - pinned : key in windowState.pinnedIds       -> yellow left bar + tint
+  //  - pruned : known last turn but NOT kept/pinned -> rose left bar + tint + faded
+  // Pinned wins over pruned; never-sent items get no marker.
+  const getWindowVisualStyle = useCallback(
+    (item: ChatHistoryItemWithMessageId): CSSProperties => {
       if (contextTokenMode !== "incremental" || !windowState) {
-        return "";
+        return {};
       }
       const key = getAnchorKey(item.message);
       if (key === undefined) {
-        return "";
+        return {};
       }
       if (windowState.pinnedIds.includes(key)) {
-        return "border-warning border-l-4 border-solid";
+        return {
+          borderLeft: "4px solid #eab308", // yellow-500
+          background: "rgba(234, 179, 8, 0.08)",
+        };
       }
       if (
         windowState.knownIds?.includes(key) &&
         !windowState.includedIds.includes(key)
       ) {
-        return "opacity-45 border-description border-l-4 border-solid";
+        return {
+          borderLeft: "4px solid #f43f5e", // rose-500
+          background: "rgba(244, 63, 94, 0.08)",
+          opacity: 0.55,
+        };
       }
-      return "";
+      return {};
     },
     [contextTokenMode, windowState],
   );
@@ -440,9 +452,9 @@ export function Chat() {
           .map((item, index: number) => (
             <div
               key={item.message.id}
-              className={getWindowVisualClass(item)}
               style={{
                 minHeight: index === history.length - 1 ? "200px" : 0,
+                ...getWindowVisualStyle(item),
               }}
             >
               <ErrorBoundary
