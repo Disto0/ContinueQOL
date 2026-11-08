@@ -33,6 +33,7 @@ const ContextStatus = () => {
     (state) => state.config.config.ui?.contextTokenMode ?? "local",
   );
   const serverAnchor = useAppSelector((state) => state.session.serverAnchor);
+  const windowState = useAppSelector((state) => state.session.windowState);
 
   // Added by this fork (diagnostic): server-reported usage from the most recent
   // assistant request. OpenAI-compatible servers report `usage` on the final
@@ -98,6 +99,29 @@ const ContextStatus = () => {
     localUncalibrated !== undefined && contextTokens
       ? localUncalibrated - contextTokens.used
       : undefined;
+
+  // Added by this fork (2c-4 diagnostic): the GUI-owned window. Shows how many
+  // turns are actually in the window (kept) vs how many previously-sent turns are
+  // being SUPPRESSED because the core cut them last turn (knownIds minus kept and
+  // pinned). Suppression > 0 is proof the phantom-delta fix is active: those cut
+  // turns are no longer re-sent, so no phantom re-count, so real context is
+  // recovered. Plain value (not a hook), placed after the early returns.
+  const windowDiagnostics = (() => {
+    if (!windowState) {
+      return undefined;
+    }
+    const kept = new Set([
+      ...windowState.includedIds,
+      ...windowState.pinnedIds,
+    ]);
+    const known = windowState.knownIds ?? [];
+    const suppressed = known.filter((key) => !kept.has(key)).length;
+    return {
+      keptNodes: windowState.includedIds.length,
+      pinnedNodes: windowState.pinnedIds.length,
+      suppressed,
+    };
+  })();
 
   return (
     <div>
@@ -172,6 +196,13 @@ const ContextStatus = () => {
                         serverAnchor.promptTokens,
                       )} tokens across ${serverAnchor.anchoredKeys.length} messages (model: ${serverAnchor.modelTitle})`}</span>
                       <span>{`Next request will trust this baseline and only estimate newly added messages.`}</span>
+                      {windowDiagnostics && (
+                        <span>{`Window: ${windowDiagnostics.keptNodes} kept, ${windowDiagnostics.pinnedNodes} pinned${
+                          windowDiagnostics.suppressed > 0
+                            ? `, ${windowDiagnostics.suppressed} core-cut turns suppressed (not re-sent)`
+                            : ""
+                        }`}</span>
+                      )}
                     </>
                   ) : (
                     <span>{`Incremental: not yet anchored (using local estimate)`}</span>
