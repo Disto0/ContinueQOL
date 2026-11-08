@@ -452,3 +452,64 @@ describe("sessionSlice streamUpdate", () => {
     });
   });
 });
+
+describe("sessionSlice togglePinMessage (2c-5 select-side pinning)", () => {
+  const baseState = () => ({
+    lastSessionId: undefined,
+    allSessionMetadata: [],
+    history: [
+      {
+        message: { role: "user" as const, content: "prompt", id: "u-1" },
+        contextItems: [],
+      },
+      {
+        message: { role: "assistant" as const, content: "reply", id: "a-1" },
+        contextItems: [],
+      },
+    ] as ChatHistoryItemWithMessageId[],
+    isStreaming: false,
+    title: "Test Session",
+    id: "test-session-id",
+    streamAborter: new AbortController(),
+    symbols: {},
+    mode: "agent" as const,
+    isInEdit: false,
+    codeBlockApplyStates: { states: [], curIndex: 0 },
+    newestToolbarPreviewForInput: {},
+    isSessionMetadataLoading: false,
+    compactionLoading: {},
+  });
+
+  it("pins the whole exchange (assistant + preceding user) by stable id", () => {
+    const newState = sessionSlice.reducer(baseState(), {
+      type: "session/togglePinMessage",
+      payload: 1, // index of the assistant message
+    });
+    expect(newState.windowState?.pinnedIds).toEqual(
+      expect.arrayContaining(["a-1", "u-1"]),
+    );
+  });
+
+  it("creates a windowState when none exists yet", () => {
+    const newState = sessionSlice.reducer(baseState(), {
+      type: "session/togglePinMessage",
+      payload: 1,
+    });
+    expect(newState.windowState).toBeDefined();
+    expect(newState.windowState?.pinnedIds).toContain("a-1");
+  });
+
+  it("unpins the exchange on a second toggle", () => {
+    let state = sessionSlice.reducer(baseState(), {
+      type: "session/togglePinMessage",
+      payload: 1,
+    });
+    expect(state.windowState?.pinnedIds).toContain("a-1");
+    state = sessionSlice.reducer(state, {
+      type: "session/togglePinMessage",
+      payload: 1,
+    });
+    expect(state.windowState?.pinnedIds).not.toContain("a-1");
+    expect(state.windowState?.pinnedIds).not.toContain("u-1");
+  });
+});

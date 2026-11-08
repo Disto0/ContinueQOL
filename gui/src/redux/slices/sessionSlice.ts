@@ -28,6 +28,7 @@ import {
   ToolCallState,
 } from "core";
 import { mergeReasoningDetails } from "core/llm/openaiTypeConverters";
+import { getAnchorKey } from "core/llm/messages";
 import { NEW_SESSION_TITLE } from "core/util/constants";
 import {
   renderChatMessage,
@@ -1115,6 +1116,54 @@ export const sessionSlice = createSlice({
     ) => {
       state.windowState = action.payload;
     },
+    togglePinMessage: (state, action: PayloadAction<number>) => {
+      // Added by this fork (2c-5 UI / Option A): select-side pinning. The GUI owns
+      // which turns are protected (pinned); the core only enforces the ceiling and
+      // cuts pinned turns last (soft guarantee). Keys the pin by each message's
+      // stable anchor key (message id), matching what selectWindowHistory keeps and
+      // what the core receives as pinnedKeys, so a pin survives reloads and a core
+      // re-prune. Pins the whole exchange: the assistant response at `index` plus
+      // its immediately preceding user prompt (the pair deleteMessage treats as one
+      // turn). Creates a windowState if none exists yet (a pin is valid even before
+      // the first incremental send / in any mode).
+      const index = action.payload;
+      const assistant = state.history[index];
+      if (!assistant) {
+        return;
+      }
+      const keys: string[] = [];
+      const assistantKey = getAnchorKey(assistant.message);
+      if (assistantKey !== undefined) {
+        keys.push(assistantKey);
+      }
+      // Protect the paired user prompt too (the turn deleteMessage removes as one).
+      const user = state.history[index - 1];
+      if (user && user.message.role === "user") {
+        const userKey = getAnchorKey(user.message);
+        if (userKey !== undefined) {
+          keys.push(userKey);
+        }
+      }
+      if (keys.length === 0) {
+        return; // unkeyable turn cannot be pinned
+      }
+      const windowState = state.windowState ?? {
+        includedIds: [],
+        pinnedIds: [],
+        nodeCosts: {},
+      };
+      const alreadyPinned = keys.every((key) =>
+        windowState.pinnedIds.includes(key),
+      );
+      windowState.pinnedIds = alreadyPinned
+        ? windowState.pinnedIds.filter((k) => !keys.includes(k))
+        : [
+            ...windowState.pinnedIds,
+            ...keys.filter((k) => !windowState.pinnedIds.includes(k)),
+          ];
+      windowState.updatedAt = Date.now();
+      state.windowState = windowState;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1207,6 +1256,7 @@ export const {
   setTokenCalibration,
   setServerAnchor,
   setWindowState,
+  togglePinMessage,
   setCompactionLoading,
 } = sessionSlice.actions;
 

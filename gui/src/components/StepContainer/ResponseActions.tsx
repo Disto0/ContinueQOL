@@ -1,12 +1,16 @@
 import {
   ArrowsPointingInIcon,
   BarsArrowDownIcon,
+  BookmarkIcon as BookmarkOutlineIcon,
   InformationCircleIcon,
   TrashIcon,
 } from "@heroicons/react/24/outline";
+import { BookmarkIcon as BookmarkSolidIcon } from "@heroicons/react/24/solid";
 import { ChatHistoryItem } from "core";
+import { getAnchorKey } from "core/llm/messages";
 import { renderChatMessage } from "core/util/messageContent";
-import { useAppSelector } from "../../redux/hooks";
+import { useAppDispatch, useAppSelector } from "../../redux/hooks";
+import { togglePinMessage } from "../../redux/slices/sessionSlice";
 import { useCompactConversation } from "../../util/compactConversation";
 import { FeedbackButtons } from "../FeedbackButtons";
 import { CopyIconButton } from "../gui/CopyIconButton";
@@ -53,6 +57,19 @@ export default function ResponseActions({
   const showLabel = isLast && (isPruned || percent >= 60);
 
   const compactConversation = useCompactConversation();
+
+  // Added by this fork (2c-5 UI / Option A): select-side pinning is only
+  // functional in incremental mode (that's where the GUI owns the window and the
+  // core honors pinnedKeys), so the pin control is shown only there.
+  const contextTokenMode = useAppSelector(
+    (state) => state.config.config.ui?.contextTokenMode ?? "local",
+  );
+  const pinnedIds = useAppSelector(
+    (state) => state.session.windowState?.pinnedIds,
+  );
+  const dispatch = useAppDispatch();
+  const anchorKey = getAnchorKey(item.message);
+  const isPinned = anchorKey !== undefined && !!pinnedIds?.includes(anchorKey);
 
   // Added by this fork: per-message timestamp + model info tooltip.
   const timestamp = item.timestamp;
@@ -125,6 +142,25 @@ export default function ResponseActions({
           onClick={onContinueGeneration}
         >
           <BarsArrowDownIcon className="text-description-muted h-3.5 w-3.5" />
+        </HeaderButtonWithToolTip>
+      )}
+
+      {contextTokenMode === "incremental" && anchorKey !== undefined && (
+        <HeaderButtonWithToolTip
+          testId={`pin-button-${index}`}
+          text={
+            isPinned
+              ? "Unpin this exchange from the context window"
+              : "Pin this exchange so the context window keeps it (cut only as a last resort)"
+          }
+          tabIndex={-1}
+          onClick={() => dispatch(togglePinMessage(index))}
+        >
+          {isPinned ? (
+            <BookmarkSolidIcon className="text-link h-3.5 w-3.5" />
+          ) : (
+            <BookmarkOutlineIcon className="text-description-muted h-3.5 w-3.5" />
+          )}
         </HeaderButtonWithToolTip>
       )}
 
