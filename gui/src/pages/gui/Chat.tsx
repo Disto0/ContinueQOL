@@ -4,6 +4,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { Editor, JSONContent } from "@tiptap/react";
 import { ChatHistoryItem, InputModifiers } from "core";
+import { getAnchorKey } from "core/llm/messages";
 import { renderChatMessage } from "core/util/messageContent";
 import {
   useCallback,
@@ -122,6 +123,16 @@ export function Chat() {
   );
   const codeToEdit = useAppSelector((state) => state.editModeState.codeToEdit);
   const isInEdit = useAppSelector((store) => store.session.isInEdit);
+
+  // Added by this fork: the GUI-owned context window, used to give per-message
+  // visual feedback (pinned / pruned) for the transcript. Only meaningful in
+  // incremental mode, where windowState genuinely tracks what is in the active
+  // window. Applied at the per-item wrapper here (not inside StepContainer) so
+  // it covers BOTH user prompts and assistant replies uniformly.
+  const contextTokenMode = useAppSelector(
+    (state) => state.config.config.ui?.contextTokenMode ?? "local",
+  );
+  const windowState = useAppSelector((state) => state.session.windowState);
 
   const lastSessionId = useAppSelector((state) => state.session.lastSessionId);
   const hasDismissedExploreDialog = useAppSelector(
@@ -377,6 +388,37 @@ export function Chat() {
     [sendInput, isLastUserInput, history, stepsOpen, isStreaming],
   );
 
+  // Added by this fork: per-message visual feedback class for the GUI context
+  // window (incremental only). Applied to the wrapper that holds EACH history
+  // item (user prompt or assistant reply), so an exchange reads consistently:
+  //  - pinned : key in windowState.pinnedIds            -> yellow left bar
+  //  - pruned : known last turn but NOT kept and NOT pinned (the core cut it and
+  //            we do not re-send it)                    -> dimmed + grey left bar
+  // Pinned wins over pruned; never-sent items get no marker. The vertical left
+  // bar dissocates these from compacted messages (horizontal "Compacted" divider).
+  const getWindowVisualClass = useCallback(
+    (item: ChatHistoryItemWithMessageId): string => {
+      if (contextTokenMode !== "incremental" || !windowState) {
+        return "";
+      }
+      const key = getAnchorKey(item.message);
+      if (key === undefined) {
+        return "";
+      }
+      if (windowState.pinnedIds.includes(key)) {
+        return "border-warning border-l-4 border-solid";
+      }
+      if (
+        windowState.knownIds?.includes(key) &&
+        !windowState.includedIds.includes(key)
+      ) {
+        return "opacity-45 border-description border-l-4 border-solid";
+      }
+      return "";
+    },
+    [contextTokenMode, windowState],
+  );
+
   const showScrollbar = showChatScrollbar ?? window.innerHeight > 5000;
 
   return (
@@ -398,6 +440,7 @@ export function Chat() {
           .map((item, index: number) => (
             <div
               key={item.message.id}
+              className={getWindowVisualClass(item)}
               style={{
                 minHeight: index === history.length - 1 ? "200px" : 0,
               }}
