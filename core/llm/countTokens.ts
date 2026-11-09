@@ -578,6 +578,27 @@ function compileChatMessages({
     // Real prompt size this turn = trusted server baseline + new delta.
     let realTotal = serverBaseTokens + lastSequenceDelta + currentDelta;
 
+    // Added by this fork (2c-5 margin / "A" fix): anti-400 headroom for the
+    // uncertain part. serverBaseTokens is EXACT (the server reported it), but the
+    // new messages are only estimated locally, and a server can tokenize the same
+    // new content LARGER than Continue's local estimate (observed in practice).
+    // When that happens the estimate fits the guard but the real prompt crosses the
+    // model's true window → provider 400 "prompt leaves no room to answer", which
+    // Continue cannot recover from (the request is never truncated by the server).
+    // Only the delta is uncertain, so reserve headroom PROPORTIONAL to the estimated
+    // new delta and enforce against a lower ceiling. This makes the guard cut extra
+    // history only in proportion to the genuinely-new content at risk, i.e. it bites
+    // near saturation (exactly where the 400 occurs) and is invisible for small
+    // chats. Capped so an unusually large single turn can never over-prune unbounded.
+    const INCREMENTAL_DELTA_UNDERESTIMATE = 0.6;
+    const INCREMENTAL_HEADROOM_CAP = 8192;
+    const deltaEstimate = lastSequenceDelta + currentDelta;
+    const deltaHeadroom = Math.min(
+      INCREMENTAL_HEADROOM_CAP,
+      Math.ceil(deltaEstimate * INCREMENTAL_DELTA_UNDERESTIMATE),
+    );
+    const guardCeiling = Math.max(0, availableTokens - deltaHeadroom);
+
     // Added by this fork (2c-5): pinned-aware hard guard. Select is a GUI
     // decision; the core only enforces the availableTokens ceiling. When it must
     // cut, it drops the OLDEST NON-PINNED turn first, and only force-cuts a
@@ -600,7 +621,7 @@ function compileChatMessages({
       removalCredit: number;
     }) => (msg.anchored ? msg.removalCredit : msg.tokens);
 
-    while (historyWithTokens.length > 0 && realTotal > availableTokens) {
+    while (historyWithTokens.length > 0 && realTotal > guardCeiling) {
       // Find the start index of the oldest turn-group whose HEAD is not pinned.
       // A group head is any non-tool entry (tool entries belong to the head
       // above them). If every head is pinned, force-cut the oldest group.
