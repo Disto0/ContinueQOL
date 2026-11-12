@@ -552,3 +552,86 @@ describe("sessionSlice togglePinMessage (2c-5 select-side pinning)", () => {
     );
   });
 });
+
+describe("sessionSlice pruneIncompleteTrailingResponse (resubmit fix)", () => {
+  const item = (
+    role: "user" | "assistant" | "tool",
+    id: string,
+    content: string,
+    extra: any = {},
+  ) =>
+    ({
+      message: { role, content, id, ...(extra.message ?? {}) },
+      contextItems: [],
+      ...(extra.item ?? {}),
+    }) as ChatHistoryItemWithMessageId;
+
+  // A reply is complete only if it has a promptLog (Continue attaches those only
+  // on a normal stream completion). Empty / truncated replies have none.
+  const doneAssistant = (id: string, content: string) =>
+    item("assistant", id, content, { item: { promptLogs: [{} as any] } });
+
+  const base = (history: ChatHistoryItemWithMessageId[]) => ({
+    ...sessionSlice.getInitialState(),
+    history,
+  });
+
+  it("removes an empty trailing assistant but keeps the user", () => {
+    const state = sessionSlice.reducer(
+      base([item("user", "u1", "prompt"), item("assistant", "a1", "")]),
+      { type: "session/pruneIncompleteTrailingResponse" },
+    );
+    expect(state.history.map((h) => h.message.id)).toEqual(["u1"]);
+  });
+
+  it("removes a truncated assistant but keeps the completed reply before it", () => {
+    const state = sessionSlice.reducer(
+      base([
+        item("user", "u1", "prompt"),
+        doneAssistant("a1", "full good reply"),
+        item("assistant", "a2", "half a reply that go"),
+      ]),
+      { type: "session/pruneIncompleteTrailingResponse" },
+    );
+    expect(state.history.map((h) => h.message.id)).toEqual(["u1", "a1"]);
+  });
+
+  it("keeps an applied tool result and removes only the empty tail after it", () => {
+    const state = sessionSlice.reducer(
+      base([
+        item("user", "u1", "prompt"),
+        item("assistant", "a1", "calling tool", {
+          message: {
+            toolCalls: [
+              {
+                id: "tc-1",
+                type: "function",
+                function: { name: "x", arguments: "{}" },
+              },
+            ],
+          },
+          item: { promptLogs: [{} as any] },
+        }),
+        item("tool", "tc-1", "tool output"),
+        item("assistant", "a2", ""),
+      ]),
+      { type: "session/pruneIncompleteTrailingResponse" },
+    );
+    expect(state.history.map((h) => h.message.id)).toEqual([
+      "u1",
+      "a1",
+      "tc-1",
+    ]);
+  });
+
+  it("does nothing when the last reply is complete", () => {
+    const history = [
+      item("user", "u1", "prompt"),
+      doneAssistant("a1", "complete reply"),
+    ];
+    const state = sessionSlice.reducer(base(history), {
+      type: "session/pruneIncompleteTrailingResponse",
+    });
+    expect(state.history.map((h) => h.message.id)).toEqual(["u1", "a1"]);
+  });
+});

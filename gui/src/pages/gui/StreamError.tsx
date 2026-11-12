@@ -9,14 +9,14 @@ import { useContext, useMemo } from "react";
 
 import { GhostButton } from "../../components";
 import { useEditModel } from "../../components/mainInput/Lump/useEditBlock";
-import { useMainEditor } from "../../components/mainInput/TipTapEditor";
 import ToggleDiv from "../../components/ToggleDiv";
 import { useAuth } from "../../context/Auth";
 import { IdeMessengerContext } from "../../context/IdeMessenger";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { selectSelectedChatModel } from "../../redux/slices/configSlice";
+import { pruneIncompleteTrailingResponse } from "../../redux/slices/sessionSlice";
 import { setDialogMessage, setShowDialog } from "../../redux/slices/uiSlice";
-import { streamResponseThunk } from "../../redux/thunks/streamResponse";
+import { streamNormalInput } from "../../redux/thunks/streamNormalInput";
 import { analyzeError } from "../../util/errorAnalysis";
 
 interface StreamErrorProps {
@@ -28,7 +28,6 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
   const ideMessenger = useContext(IdeMessengerContext);
   const selectedModel = useAppSelector(selectSelectedChatModel);
   const { refreshProfiles } = useAuth();
-  const { mainEditor } = useMainEditor();
 
   const {
     parsedError,
@@ -50,8 +49,6 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
   const copyErrorToClipboard = () => {
     void navigator.clipboard.writeText(parsedError);
   };
-
-  const history = useAppSelector((store) => store.session.history);
 
   const checkKeysButton = apiKeyUrl ? (
     <GhostButton
@@ -79,35 +76,17 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
     <GhostButton
       className="flex items-center"
       onClick={() => {
-        let index = -1;
-        for (let i = history.length - 1; i >= 0; i--) {
-          if (
-            history[i].message.role === "user" ||
-            history[i].message.role === "tool"
-          ) {
-            index = i;
-            break;
-          }
-        }
-
-        if (!mainEditor) {
-          console.error("Main editor not found, cannot resubmit message.");
-          return;
-        }
-
-        const editorState =
-          index === -1 ? mainEditor.getJSON() : history[index].editorState;
-
-        void dispatch(
-          streamResponseThunk({
-            editorState,
-            modifiers: {
-              noContext: true,
-              useCodebase: false,
-            },
-            index: index === -1 ? 0 : index,
-          }),
-        );
+        // Added by this fork (resubmit fix): resume instead of re-running.
+        // 1) Delete ONLY the certainly-incomplete reply at the tail (an empty
+        //    assistant, or a truncated one whose stream never completed - both have
+        //    no prompt log). Completed work (users, applied tools, finished replies)
+        //    is never touched, so no good response is ever eaten.
+        // 2) Continue from the surviving history with streamNormalInput: it rebuilds
+        //    the request from current history (ending at the user prompt, or at
+        //    already-applied tool results) and asks the model to carry on. Tools that
+        //    already ran are plain history and are NOT re-executed.
+        dispatch(pruneIncompleteTrailingResponse());
+        void dispatch(streamNormalInput({}));
         dispatch(setShowDialog(false));
         dispatch(setDialogMessage(undefined));
       }}

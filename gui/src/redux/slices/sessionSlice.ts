@@ -1162,6 +1162,60 @@ export const sessionSlice = createSlice({
       windowState.updatedAt = Date.now();
       state.windowState = windowState;
     },
+    pruneIncompleteTrailingResponse: (state) => {
+      // Added by this fork (resubmit fix): delete the LEAST possible. Used when a
+      // request failed (server off mid-prompt, or connection lost mid-response).
+      // It removes ONLY what is certainly incomplete at the tail of the current
+      // turn, and never touches completed work:
+      //   • an assistant with no content and no tool calls (empty)      -> incomplete
+      //   • a text assistant with content but no finished prompt log and
+      //     no executed tool call (truncated mid-stream)                -> incomplete
+      //   • a thinking item still streaming (reasoning active / no endAt) -> incomplete
+      // Anything COMPLETE is kept: a user, a tool result, an assistant that has a
+      // prompt log (its stream finished normally) OR an assistant that produced a
+      // non-generating tool call (the turn legitimately continues via tools).
+      // We compute the last COMPLETE position ("boundary") and drop only assistant/
+      // thinking items after it. This guarantees no prior good reply is ever eaten
+      // (the old "resubmit" bug) and no completed turn is discarded.
+      const history = state.history;
+      // A reply is COMPLETE only if its stream finished normally. Continue attaches
+      // promptLogs (via addPromptCompletionPair) EXCLUSIVELY on a normal completion,
+      // so a prompt log is the ground-truth "this reply is whole" signal. An empty
+      // assistant (server never reacted) and a truncated/errored assistant (connection
+      // lost mid-stream) have NO prompt log → certainly incomplete. A tool result is
+      // a complete applied action (kept). A user is a complete input (kept).
+      const isCompleteAssistant = (
+        item: ChatHistoryItemWithMessageId,
+      ): boolean => (item.promptLogs?.length ?? 0) > 0;
+
+      let boundary = -1;
+      for (let i = 0; i < history.length; i++) {
+        const role = history[i].message.role;
+        if (role === "user" || role === "tool") {
+          boundary = i;
+        } else if (role === "assistant" && isCompleteAssistant(history[i])) {
+          boundary = i;
+        }
+      }
+
+      const kept: ChatHistoryItemWithMessageId[] = [];
+      for (let i = 0; i < history.length; i++) {
+        if (i <= boundary) {
+          kept.push(history[i]);
+          continue;
+        }
+        const role = history[i].message.role;
+        // After the last complete point, drop assistant/thinking items (the failed
+        // tail). A user/tool after boundary would mark a new complete point, but the
+        // loop above already advanced the boundary for those, so we cannot get here
+        // for them; being defensive, keep anything that is not a reply.
+        if (role === "assistant" || role === "thinking") {
+          continue;
+        }
+        kept.push(history[i]);
+      }
+      state.history = kept;
+    },
   },
   selectors: {
     selectIsGatheringContext: (state) => {
@@ -1255,6 +1309,7 @@ export const {
   setServerAnchor,
   setWindowState,
   togglePinMessage,
+  pruneIncompleteTrailingResponse,
   setCompactionLoading,
 } = sessionSlice.actions;
 
