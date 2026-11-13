@@ -9,14 +9,14 @@ import { useContext, useMemo } from "react";
 
 import { GhostButton } from "../../components";
 import { useEditModel } from "../../components/mainInput/Lump/useEditBlock";
+import { useMainEditor } from "../../components/mainInput/TipTapEditor";
 import ToggleDiv from "../../components/ToggleDiv";
 import { useAuth } from "../../context/Auth";
 import { IdeMessengerContext } from "../../context/IdeMessenger";
 import { useAppDispatch, useAppSelector } from "../../redux/hooks";
 import { selectSelectedChatModel } from "../../redux/slices/configSlice";
-import { pruneIncompleteTrailingResponse } from "../../redux/slices/sessionSlice";
 import { setDialogMessage, setShowDialog } from "../../redux/slices/uiSlice";
-import { streamNormalInput } from "../../redux/thunks/streamNormalInput";
+import { resubmitLastMessage } from "../../redux/thunks/resubmitLastMessage";
 import { analyzeError } from "../../util/errorAnalysis";
 
 interface StreamErrorProps {
@@ -28,6 +28,7 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
   const ideMessenger = useContext(IdeMessengerContext);
   const selectedModel = useAppSelector(selectSelectedChatModel);
   const { refreshProfiles } = useAuth();
+  const { mainEditor } = useMainEditor();
 
   const {
     parsedError,
@@ -76,19 +77,25 @@ const StreamErrorDialog = ({ error }: StreamErrorProps) => {
     <GhostButton
       className="flex items-center"
       onClick={() => {
-        // Added by this fork (resubmit fix): resume instead of re-running.
-        // 1) Delete ONLY the certainly-incomplete reply at the tail (an empty
-        //    assistant, or a truncated one whose stream never completed - both have
-        //    no prompt log). Completed work (users, applied tools, finished replies)
-        //    is never touched, so no good response is ever eaten.
-        // 2) Continue from the surviving history with streamNormalInput: it rebuilds
-        //    the request from current history (ending at the user prompt, or at
-        //    already-applied tool results) and asks the model to carry on. Tools that
-        //    already ran are plain history and are NOT re-executed.
-        dispatch(pruneIncompleteTrailingResponse());
-        void dispatch(streamNormalInput({}));
+        // Close this dialog first; resubmitLastMessage re-opens a fresh one only if
+        // the request fails again (server still down), preserving the retry loop.
+        // The parked prompt lives in the main input box (CASE B restores it there),
+        // so we read its content here and pass it to the thunk. The thunk only uses
+        // it when history ends on the previous assistant (CASE B); when history ends
+        // on a real user/tool (CASE A) it resumes from history instead.
+        const parkedEditorState = mainEditor?.getJSON();
         dispatch(setShowDialog(false));
         dispatch(setDialogMessage(undefined));
+        void dispatch(
+          resubmitLastMessage({
+            editorState: parkedEditorState,
+            modifiers: { noContext: true, useCodebase: false },
+            // CASE B only: mirrors normal-send clearing the input box. Harmless in
+            // CASE A (the thunk never calls it). If the re-send fails, the prompt is
+            // re-parked back by clearDanglingMessages, so nothing is lost.
+            clearEditor: () => mainEditor?.commands.clearContent(),
+          }),
+        );
       }}
     >
       <ArrowPathIcon className="mr-1.5 h-3.5 w-3.5" />
