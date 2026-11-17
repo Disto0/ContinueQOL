@@ -191,7 +191,7 @@ export const streamNormalInput = createAsyncThunk<
     const anchorIsValid =
       isIncremental &&
       !!anchor &&
-      anchor.modelTitle === selectedChatModel.title &&
+      anchor.modelKey === selectedChatModel.model &&
       anchor.baseSignature === baseSignature;
 
     // Added by this fork: in incremental mode only, keep each message's stable
@@ -242,7 +242,7 @@ export const streamNormalInput = createAsyncThunk<
     const calibrationFactor =
       isCalibration &&
       existingCalibration &&
-      existingCalibration.modelTitle === selectedChatModel.title
+      existingCalibration.modelKey === selectedChatModel.model
         ? existingCalibration.factor
         : undefined;
 
@@ -363,7 +363,7 @@ export const streamNormalInput = createAsyncThunk<
             dispatch(
               setTokenCalibration({
                 factor: Math.min(1.5, Math.max(0.33, nextFactor)),
-                modelTitle: selectedChatModel.title,
+                modelKey: selectedChatModel.model,
               }),
             );
           }
@@ -386,7 +386,7 @@ export const streamNormalInput = createAsyncThunk<
               promptTokens: serverUsage.promptTokens,
               anchoredKeys,
               baseSignature,
-              modelTitle: selectedChatModel.title,
+              modelKey: selectedChatModel.model,
             }),
           );
 
@@ -422,7 +422,7 @@ export const streamNormalInput = createAsyncThunk<
               knownIds: Array.from(knownKeys),
               nodeCosts,
               baseSignature,
-              modelTitle: selectedChatModel.title,
+              modelKey: selectedChatModel.model,
               updatedAt: Date.now(),
             }),
           );

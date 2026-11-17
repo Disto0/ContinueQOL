@@ -240,7 +240,7 @@ type SessionState = {
   // a way that invalidates the previous measurement. Never persisted.
   // The model title is stored alongside the factor so switching chat models
   // (a different tokenizer) automatically invalidates a stale measurement.
-  tokenCalibration?: { factor: number; modelTitle: string };
+  tokenCalibration?: { factor: number; modelKey: string };
   // Added by this fork: the server-anchored token baseline for incremental mode.
   // Captures the exact prompt_tokens the server reported for the last successful
   // request AND the anchor keys of the messages it actually counted (echoed back
@@ -249,13 +249,13 @@ type SessionState = {
   // toolCallId (not a count/index) is what makes the anchor survive the core
   // re-pruning its own older turns. baseSignature fingerprints the non-negotiable
   // system message + active tools; if it changes, the baseline no longer covers
-  // them and the anchor is invalidated (→ full local estimate). modelTitle
+  // them and the anchor is invalidated (→ full local estimate). modelKey
   // invalidates on a model switch. Not yet persisted across reloads.
   serverAnchor?: {
     promptTokens: number;
     anchoredKeys: string[];
     baseSignature: string;
-    modelTitle: string;
+    modelKey: string;
   };
   // Added by this fork: the GUI-owned context window (select-GUI / enforce-core).
   // In incremental mode it records which history turns the core actually KEPT on

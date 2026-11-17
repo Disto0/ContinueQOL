@@ -194,7 +194,7 @@ const ContextStatus = () => {
                     <>
                       <span>{`Server anchor: ${formatTokens(
                         serverAnchor.promptTokens,
-                      )} tokens across ${serverAnchor.anchoredKeys.length} messages (model: ${serverAnchor.modelTitle})`}</span>
+                      )} tokens across ${serverAnchor.anchoredKeys.length} messages (model: ${serverAnchor.modelKey})`}</span>
                       <span>{`Next request will trust this baseline and only estimate newly added messages.`}</span>
                       {windowDiagnostics && (
                         <span>{`Window: ${windowDiagnostics.keptNodes} kept, ${windowDiagnostics.pinnedNodes} pinned${
@@ -211,7 +211,7 @@ const ContextStatus = () => {
                   <>
                     <span>{`Calibration factor: ${tokenCalibration.factor.toFixed(
                       2,
-                    )}× (model: ${tokenCalibration.modelTitle})`}</span>
+                    )}× (model: ${tokenCalibration.modelKey})`}</span>
                     {localUncalibrated !== undefined && (
                       <span>{`Local tokenizer (no calibration): ${formatTokens(
                         localUncalibrated,

@@ -306,7 +306,7 @@ export interface Session {
   /** Optional: last computed context fill ratio (see `contextTokens`). */
   contextPercentage?: number;
   /** Optional: measured token calibration (factor + model it was measured for). */
-  tokenCalibration?: { factor: number; modelTitle: string };
+  tokenCalibration?: { factor: number; modelKey: string };
   /**
    * Optional: the server-anchored token baseline used by incremental mode, added
    * by this fork. Persisted so an anchored session keeps its server-referenced
@@ -318,7 +318,7 @@ export interface Session {
     promptTokens: number;
     anchoredKeys: string[];
     baseSignature: string;
-    modelTitle: string;
+    modelKey: string;
   };
   /**
    * Optional: the GUI-owned context window (see ContextWindowState), added by
@@ -2120,8 +2120,8 @@ export interface NodeTokenCost {
  *   them last if the hard guard fires)
  * - nodeCosts: cached per-node token costs (server-derived when append-only,
  *   else core-calibrated fallback) used to budget the window
- * - baseSignature/modelTitle: fingerprint that invalidates cached costs when the
- *   non-negotiable system+tools set or the model changes (totor counts differ)
+ * - baseSignature/modelKey: fingerprint that invalidates cached costs when the
+ *   non-negotiable system+tools set or the model changes (tokenizer counts differ)
  * Optional / never required by the core; it is GUI policy persisted for reloads.
  */
 export interface ContextWindowState {
@@ -2138,7 +2138,7 @@ export interface ContextWindowState {
    */
   knownIds?: string[];
   baseSignature?: string;
-  modelTitle?: string;
+  modelKey?: string;
   updatedAt?: number;
 }
 
