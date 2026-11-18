@@ -390,12 +390,13 @@ const MIN_RESPONSE_TOKENS = 1000;
  * in place and returns the new running total so the caller can set didPrune.
  */
 function enforceAnchoredWindow(
-  historyWithTokens: Array<{
-    role: string;
-    anchored: boolean;
-    tokens: number;
-    removalCredit: number;
-  }>,
+  historyWithTokens: Array<
+    ChatMessage & {
+      anchored: boolean;
+      tokens: number;
+      removalCredit: number;
+    }
+  >,
   realTotal: number,
   guardCeiling: number,
   isPinned: (msg: ChatMessage) => boolean,
