@@ -175,12 +175,17 @@ See [`intellij/CONTRIBUTING.md`](./extensions/intellij/CONTRIBUTING.md) for the 
 
 ### Our Git Workflow
 
-We keep a single permanent branch: `main`. When we are ready to create a "pre-release" version, we create a tag on the
-`main` branch titled `v1.3.x-vscode`, which automatically triggers the workflow
-in [preview.yaml](./.github/workflows/preview.yaml), which builds and releases a version of the VS Code extension. When
-a release has been sufficiently tested, we will create a new release titled `v1.2.x-vscode`, triggering a similar
-workflow in [main.yaml](./.github/workflows/main.yaml), which will build and release a main release of the VS Code
-extension. Any hotfixes can be made by creating a feature branch from the tag for the release in question. This workflow
+We keep a single permanent branch: `main`. When we are ready to create a "pre-release" version, we bump the extension
+version in `extensions/vscode/package.json` (e.g. `1.4.0-preview.4`) and create a tag on the `main` branch titled
+`v<major>.<minor>.<patch>-preview.<id>-vscode` (e.g. `v1.4.0-preview.4-vscode`). This automatically triggers the
+workflow in [preview.yaml](./.github/workflows/preview.yaml), which builds and releases a pre-release of the VS Code
+extension for testing. When a pre-release has been sufficiently tested, we create a stable release titled
+`v<major>.<minor>.<patch>-vscode` (no `preview` segment, e.g. `v1.4.0-vscode`), triggering a similar workflow in
+[main.yaml](./.github/workflows/main.yaml), which builds and releases the stable VS Code extension. The two workflows
+are kept mutually exclusive by their tag filter: `preview.yaml` only runs for tags matching `v*.*.*-preview.*-vscode`,
+and `main.yaml` only runs for tags matching `v*.*.*-vscode` that do _not_ contain `preview`. This keeps the pattern
+future-proof across major/minor versions while a `-vscode` suffix keeps VS Code releases distinct from JetBrains ones.
+Any hotfixes can be made by creating a feature branch from the tag for the release in question. This workflow
 is well explained by <http://releaseflow.org>.
 
 ### What makes a good PR?

@@ -20,7 +20,7 @@ jobs:
       - id: check
         working-directory: .
         run: |
-          if [[ "${{ github.event.release.tag_name }}" == v1.4-preview.*-vscode ]]; then
+          if [[ "${{ github.event.release.tag_name }}" == v*.*.*-preview.*-vscode ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
@@ -116,8 +116,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             vsix-artifacts/*.vsix
-          token: ${{ secrets.CI_GITHUB_TOKEN }}
-          repository: continuedev/continue
+          token: ${{ secrets.GITHUB_TOKEN }}
           prerelease: true
 
   publish:
