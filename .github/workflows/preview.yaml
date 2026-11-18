@@ -49,10 +49,13 @@ jobs:
             platform: linux
             arch: arm64
             npm_config_arch: arm64
-          - os: ubuntu-latest
-            platform: linux
-            arch: armhf
-            npm_config_arch: arm
+          # linux-armhf DISABLED: @vscode/ripgrep ships no prebuilt `rg` binary
+          # for armhf, so the build can't be packaged (the build job would fail
+          # and block the whole release). Re-enable only if ripgrep gains armhf.
+          # - os: ubuntu-latest
+          #   platform: linux
+          #   arch: armhf
+          #   npm_config_arch: arm
           - os: ubuntu-latest
             platform: alpine
             arch: x64
