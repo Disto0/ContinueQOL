@@ -60,6 +60,7 @@ jobs:
         with:
           is_fork: ${{ github.event.pull_request.head.repo.fork == true }}
           is_dependabot: ${{ github.actor == 'dependabot[bot]' }}
+          has_api_key: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Type check and lint
         run: |
@@ -203,6 +204,7 @@ jobs:
         with:
           is_fork: ${{ github.event.pull_request.head.repo.fork == true }}
           is_dependabot: ${{ github.actor == 'dependabot[bot]' }}
+          has_api_key: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Test and check ${{ matrix.package }}
         run: |

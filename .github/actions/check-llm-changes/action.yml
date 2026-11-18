@@ -16,6 +16,12 @@ inputs:
     description: "Whether this is a dependabot PR"
     required: false
     default: "false"
+  has_api_key:
+    description: >
+      Whether a real OpenAI API key is available in this context. Pass the raw
+      OPENAI_API_KEY secret here. When it is empty the API-key suites (e.g.
+      core/llm/llm.test.ts) cannot run and MUST be skipped, otherwise they fail
+      with 401 on forks that have no such secret.
 
 runs:
   using: "composite"
@@ -23,6 +29,8 @@ runs:
     - name: Check if LLM-related files changed
       id: check-changes
       shell: bash
+      env:
+        CHECK_HAS_API_KEY: ${{ inputs.has_api_key }}
       run: |
         if [ "${{ github.event_name }}" = "push" ]; then
           # For push events, compare against the previous commit
@@ -46,8 +54,15 @@ runs:
         echo "llm_changed=$LLM_CHANGED" >> $GITHUB_OUTPUT
 
         # Determine whether to ignore API tests
+        # Three reasons to ignore:
+        #   1. fork or dependabot (no access to secrets)
+        #   2. no LLM-related file changed (no reason to run them)
+        #   3. OPENAI_API_KEY is empty (the suites would 401 anyway) — robust
+        #      detection that works even on direct push to main (where the fork
+        #      detection via pull_request.head.repo.fork cannot work because
+        #      pull_request is absent in push events).
         IGNORE_API_TESTS=false
-        if [ "${{ inputs.is_fork }}" = "true" ] || [ "${{ inputs.is_dependabot }}" = "true" ] || [ "$LLM_CHANGED" = "false" ]; then
+        if [ "${{ inputs.is_fork }}" = "true" ] || [ "${{ inputs.is_dependabot }}" = "true" ] || [ "$LLM_CHANGED" = "false" ] || [ -z "$CHECK_HAS_API_KEY" ]; then
           IGNORE_API_TESTS=true
         fi
 
