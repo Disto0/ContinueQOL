@@ -61,10 +61,14 @@ jobs:
             platform: linux
             arch: x64
             npm_config_arch: x64
-          - os: ubuntu-latest
-            platform: linux
-            arch: arm64
-            npm_config_arch: arm64
+          # linux-arm64 DISABLED: runner is x64, core installs linux-x64 native
+          # bindings (ripgrep/sqlite); no prebuilt arm64 binary available to copy
+          # into out/, so package.js validateOutput throws. Re-enable only with an
+          # arm64 runner or prebuilt arm64 native modules.
+          # - os: ubuntu-latest
+          #   platform: linux
+          #   arch: arm64
+          #   npm_config_arch: arm64
           # linux-armhf DISABLED: @vscode/ripgrep ships no prebuilt `rg` binary
           # for armhf, so the build can't be packaged (the build job would fail
           # and block the whole release). Re-enable only if ripgrep gains armhf.
