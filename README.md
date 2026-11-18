@@ -14,7 +14,7 @@
   <img src="media/github-readme.png" alt="Banner" />
 </p>
 
-## Fork: Continue(d)
+## Fork: ContinueQOL
 
 This is a personal fork of [Continue](https://github.com/continuedev/continue), used as my day-to-day VS Code coding agent. It tracks upstream and layers on the UI fixes and quality-of-life improvements I need while working — see [Features](#features) for the current list.
 
