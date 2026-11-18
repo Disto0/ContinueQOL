@@ -32,6 +32,20 @@ This is a personal fork of [Continue](https://github.com/continuedev/continue), 
 
 ### Changelog
 
+#### 1.4.0-preview.4
+
+Based on upstream `continuedev/continue` (package version 1.3.40).
+
+This release makes Continue's context accounting **server-referenced** and moves the **selection of the context window to the GUI** while the core keeps only a hard guard ("select-GUI / enforce-core"). The default behaviour (`local`) is unchanged; the new modes are opt-in.
+
+- **Added** - Server-referenced context modes. A single `contextTokenMode` select (default / calibration / incremental) replaces the earlier `serverTokenCounting` toggle. `calibration` applies a server-measured factor to the whole history, re-measured every request from the reported `usage`. `incremental` anchors on the exact prompt-token count the server reported for the last successful request and only locally estimates newly added messages, so the context ceiling tracks the server's real tokenizer instead of Continue's inflated local one. Falls back to a full local estimate on a first turn or when a server omits `usage`. Files: `extensions/vscode/settings/config-ui.ts`, `configSchema`, `core/llm/countTokens.ts`, `core/index.d.ts`, `gui/src/redux/thunks/streamNormalInput.ts`.
+- **Added** - Stable message ids for incremental accounting. Each message carries a stable client-side id (or `tool:<toolCallId>` for tool results) that is threaded to the core, echoed back on the compiled messages, and never sent to the API. This is what lets an anchor survive the core re-pruning its own older turns. Files: `core/llm/messages.ts`, `core/llm/countTokens.ts`, `core/llm/index.ts`, `core/llm/autodetect.ts` (OpenAI-compatible usage now requested), `gui/src/redux/thunks/streamNormalInput.ts`.
+- **Added** - GUI-owned context window (select-GUI / enforce-core). The GUI now decides which turns to send and never re-introduces turns the core cut last turn (the re-introduction was what kept the bar pinned at ~100% and created a phantom delta). A `ContextWindowState` records the kept / pinned / known turn ids and cached per-node token costs; the core returns per-node costs and only enforces the hard ceiling (cutting non-pinned first, then pinned as a last resort). Window + anchor are persisted across a session reload. Files: `core/index.d.ts` (`ContextWindowState`, `NodeTokenCost`), `gui/src/redux/util/selectWindowHistory.ts`, `gui/src/redux/slices/sessionSlice.ts`, `core/llm/countTokens.ts`.
+- **Added** - Turn pinning + visual window feedback. A per-turn pin control feeds `windowState.pinnedIds` (shown only in incremental mode), and messages show a 3-colour side marker: purple = pinned, neutral = covered by a summary/compact, rose = pruned/force-cut. Pinning keeps whole user/assistant exchanges, never a tool result. Files: `core/llm/messages.ts` (`getMessageTurnGroup`), `gui/src/redux/slices/sessionSlice.ts` (`togglePinMessage`), `gui/src/components/StepContainer/ResponseActions.tsx`, `gui/src/components/StepContainer/AssistantMessage.tsx`, `gui/src/components/StepContainer/ChatToolGroupDisplay.tsx`, `gui/src/components/ContextSearchDisplay.tsx`.
+- **Added** - Anti-400 headroom in incremental mode. The core reserves a safety margin proportional to the estimated new content it is adding this turn (not a constant), and reports a `reserveUsed` value so the GUI's fill ratio uses the real ceiling. This removed the recurring 400 "input too long" at ~89% when a tool result was added, without ever sending more than the model can hold. Files: `core/llm/countTokens.ts`.
+- **Fixed** - "Resubmit last message" now resumes instead of truncating to the last user prompt (it used to delete one more recent assistant on every click). It deletes only the certainly-incomplete trailing reply (an assistant with no prompt log = empty or truncated) and then continues from the surviving history; when the prompt had instead been parked back in the input box (server already unreachable), it re-sends it as a normal send so it enters history and is answered, then clears the input box exactly like a normal submit. Tools already run are not re-executed. Files: `gui/src/redux/thunks/resubmitLastMessage.tsx`, `gui/src/redux/slices/sessionSlice.ts` (`pruneIncompleteTrailingResponse`), `gui/src/pages/gui/StreamError.tsx`.
+- **Changed** - The incremental anchor and the calibration factor are keyed on the model's real id (`modelKey`, from `selectedChatModel.model`) instead of its free-form `title`. Renaming a model no longer invalidates its anchor, and two different models can no longer be treated as the same tokenizer because they share a title. The context tooltip now shows the model id. Files: `core/index.d.ts`, `gui/src/redux/slices/sessionSlice.ts`, `gui/src/redux/thunks/streamNormalInput.ts`, `gui/src/components/mainInput/ContextStatus.tsx`.
+
 #### 1.4.0-preview.3
 
 Based on upstream `continuedev/continue` (package version 1.3.40).
@@ -122,7 +136,7 @@ npm run package
 ## How to install
 
 ```powershell
-code --install-extension extensions/vscode/build/continue-1.4.0-preview.3.vsix
+code --install-extension extensions/vscode/build/continue-1.4.0-preview.4.vsix
 ```
 
 ## Dev mode
