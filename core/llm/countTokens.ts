@@ -378,6 +378,59 @@ export function getTokenCountingBufferSafety(contextLength: number) {
 
 const MIN_RESPONSE_TOKENS = 1000;
 
+/**
+ * Added by this fork (2c-5): the pinned-aware hard guard for the incremental
+ * path, kept separate so compileChatMessages stays within the eslint complexity
+ * budget. Behaviour is identical to the previous inline while-loop it replaced.
+ * The core only ENFORCES the ceiling (select is a GUI decision). When it must
+ * cut, it drops whole turn-groups (a head message + its contiguous tool
+ * responses), oldest NON-PINNED first, and force-cuts a PINNED group only as a
+ * last resort (pin = soft guarantee). Cutting at whole-turn granularity never
+ * orphans a tool output from its assistant tool-call. Mutates historyWithTokens
+ * in place and returns the new running total so the caller can set didPrune.
+ */
+function enforceAnchoredWindow(
+  historyWithTokens: Array<{
+    role: string;
+    anchored: boolean;
+    tokens: number;
+    removalCredit: number;
+  }>,
+  realTotal: number,
+  guardCeiling: number,
+  isPinned: (msg: ChatMessage) => boolean,
+  creditOf: (msg: {
+    anchored: boolean;
+    tokens: number;
+    removalCredit: number;
+  }) => number,
+): number {
+  let total = realTotal;
+  while (historyWithTokens.length > 0 && total > guardCeiling) {
+    // Oldest turn-group whose HEAD (a non-tool entry) is not pinned.
+    let groupStart = historyWithTokens.findIndex(
+      (m) => m.role !== "tool" && !isPinned(m),
+    );
+    if (groupStart === -1) {
+      // Every head pinned: force-cut the oldest group anyway (soft guarantee).
+      groupStart = historyWithTokens.findIndex((m) => m.role !== "tool");
+      if (groupStart === -1) {
+        groupStart = 0;
+      }
+    }
+    // Extend the group over its contiguous tool responses.
+    let groupEnd = groupStart + 1;
+    while (historyWithTokens[groupEnd]?.role === "tool") {
+      groupEnd++;
+    }
+    for (let k = groupStart; k < groupEnd; k++) {
+      total -= creditOf(historyWithTokens[k]);
+    }
+    historyWithTokens.splice(groupStart, groupEnd - groupStart);
+  }
+  return total;
+}
+
 function pruneRawPromptFromTop(
   modelName: string,
   contextLength: number,
@@ -621,41 +674,15 @@ function compileChatMessages({
       removalCredit: number;
     }) => (msg.anchored ? msg.removalCredit : msg.tokens);
 
-    while (historyWithTokens.length > 0 && realTotal > guardCeiling) {
-      // Find the start index of the oldest turn-group whose HEAD is not pinned.
-      // A group head is any non-tool entry (tool entries belong to the head
-      // above them). If every head is pinned, force-cut the oldest group.
-      let groupStart = -1;
-      for (let i = 0; i < historyWithTokens.length; i++) {
-        if (historyWithTokens[i].role === "tool") {
-          continue; // not a group head
-        }
-        if (!isPinned(historyWithTokens[i])) {
-          groupStart = i;
-          break;
-        }
-      }
-      if (groupStart === -1) {
-        // All heads pinned: cut the oldest group anyway (soft guarantee).
-        groupStart = historyWithTokens.findIndex((m) => m.role !== "tool");
-        if (groupStart === -1) {
-          groupStart = 0;
-        }
-      }
-
-      // Extend the group over its contiguous tool responses (never orphan a tool
-      // output from the assistant that produced it).
-      let groupEnd = groupStart + 1;
-      while (historyWithTokens[groupEnd]?.role === "tool") {
-        groupEnd++;
-      }
-
-      for (let k = groupStart; k < groupEnd; k++) {
-        realTotal -= creditOf(historyWithTokens[k]);
-      }
-      historyWithTokens.splice(groupStart, groupEnd - groupStart);
-      didPrune = true;
-    }
+    const prunedTotal = enforceAnchoredWindow(
+      historyWithTokens,
+      realTotal,
+      guardCeiling,
+      isPinned,
+      creditOf,
+    );
+    didPrune = prunedTotal !== realTotal;
+    realTotal = prunedTotal;
 
     const remainingDelta = historyWithTokens.reduce(
       (sum, m) => sum + m.tokens,
