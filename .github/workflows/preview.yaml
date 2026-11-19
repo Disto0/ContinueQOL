@@ -156,12 +156,24 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
 
-      # Download the .vsix artifacts
+      # Download the .vsix artifacts (merged into one folder for the Release step)
       - uses: actions/download-artifact@v8
         with:
           pattern: "*-vsix"
           path: vsix-artifacts
           merge-multiple: true
+
+      # Separately, download UNMERGED so each target's artifact keeps its own
+      # folder (named "<platform>-<arch>-vsix", which WE control). The summary
+      # detects targets from these folders instead of guessing the vsce file name
+      # (the merged folder has opaque filenames, which made the old summary
+      # wrongly report every target as MISSING).
+      - name: Download per-target artifacts (for summary only)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: "*-vsix"
+          path: vsix-by-target
+          merge-multiple: false
 
       - name: Build summary (which targets produced a .vsix)
         shell: bash
@@ -177,7 +189,11 @@ jobs:
               "linux-x64" \
               "alpine-x64" \
               "darwin-x64" "darwin-arm64"; do
-              if ls vsix-artifacts/continue-*-"$t"*.vsix >/dev/null 2>&1; then
+              # Each uploaded artifact was named "<target>-vsix"; download-artifact
+              # (unmerged) recreates that as a folder. A target only uploaded a
+              # folder when its build produced a .vsix, so folder presence is the
+              # reliable signal.
+              if [ -d "vsix-by-target/${t}-vsix" ]; then
                 echo "| $t | yes |"; produced=$((produced+1));
               else
                 echo "| $t | MISSING |"; missing=$((missing+1));
