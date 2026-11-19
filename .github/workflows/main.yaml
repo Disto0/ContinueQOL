@@ -47,16 +47,23 @@ jobs:
     if: needs.check_release_name.outputs.should_run == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
+      # Default is true: GitHub cancels every still-running matrix job when one
+      # combination fails, masking which targets are actually buildable. false
+      # lets each target run to completion.
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             platform: win32
             arch: x64
             npm_config_arch: x64
-          - os: windows-latest
-            platform: win32
-            arch: arm64
-            npm_config_arch: arm
+          # win32-arm64 DISABLED: @vscode/ripgrep ships no prebuilt `rg.exe`
+          # binary for win32-arm64, so package.js validateOutput throws. Confirmed
+          # deterministic (same error on 3 isolated re-runs), not a flaky download.
+          # - os: windows-latest
+          #   platform: win32
+          #   arch: arm64
+          #   npm_config_arch: arm
           - os: ubuntu-latest
             platform: linux
             arch: x64
