@@ -124,6 +124,10 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
+    # B: ship whatever targets built even if one matrix target failed or was
+    # cancelled (e.g. no macOS runner available for darwin-x64). !cancelled()
+    # still skips the job if the whole workflow run is cancelled by a person.
+    if: ${{ !cancelled() }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -153,7 +157,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - build
-    if: github.event_name != 'workflow_dispatch' || github.event.inputs.publish_build == 'true'
+    if: (!cancelled()) && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish_build == 'true')
     permissions:
       contents: write
     steps:
