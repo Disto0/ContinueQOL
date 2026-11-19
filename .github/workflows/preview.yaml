@@ -91,11 +91,22 @@ jobs:
         with:
           node-version-file: ".nvmrc"
 
+      - name: Configure force-build
+        # B (opt-out) computed into a clean boolean so continue-on-error never
+        # references `inputs` directly (which is empty for tag-triggered runs).
+        # Default: ON for release-triggered runs and for dispatch unless
+        # force_build=false is explicitly chosen.
+        id: cfg
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] || [ "${{ inputs.force_build }}" != "false" ]; then
+            echo "coe=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "coe=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: ./.github/actions/build-vscode-extension
-        # B (opt-out): a single failing target must not cancel the whole build.
-        # Default ON, including tag-triggered runs; only a dispatch with
-        # force_build=false restores strict fail-on-first-error behaviour.
-        continue-on-error: ${{ github.event_name != 'workflow_dispatch' || inputs.force_build }}
+        continue-on-error: ${{ steps.cfg.outputs.coe == 'true' }}
         with:
           platform: ${{ matrix.platform }}
           arch: ${{ matrix.arch }}
