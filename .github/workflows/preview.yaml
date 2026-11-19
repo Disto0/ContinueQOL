@@ -10,6 +10,16 @@ on:
         description: "Whether or not to publish the built extension to the VS Code marketplace"
         required: true
         default: "false"
+      enable_retry:
+        description: "A) Retry flaky native-binary downloads (ripgrep/sqlite). Opt-in. Default false = original behaviour."
+        required: false
+        type: boolean
+        default: false
+      force_build:
+        description: "B) Do not let a single failing target cancel the whole build/release. Opt-out. Default true = force enabled (also for tag-triggered runs)."
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   check_release_name:
@@ -82,18 +92,27 @@ jobs:
           node-version-file: ".nvmrc"
 
       - uses: ./.github/actions/build-vscode-extension
+        # B (opt-out): a single failing target must not cancel the whole build.
+        # Default ON, including tag-triggered runs; only a dispatch with
+        # force_build=false restores strict fail-on-first-error behaviour.
+        continue-on-error: ${{ github.event_name != 'workflow_dispatch' || inputs.force_build }}
         with:
           platform: ${{ matrix.platform }}
           arch: ${{ matrix.arch }}
           npm_config_arch: ${{ matrix.npm_config_arch }}
           pre-release: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          enable-retry: ${{ inputs.enable_retry }}
 
       - name: Upload .vsix artifact
+        # Upload whatever was produced; if this target failed, there is simply
+        # no file and the step is a no-op (so the job stays green for the others).
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.platform }}-${{ matrix.arch }}-vsix
           path: "extensions/vscode/*.vsix"
+          if-no-files-found: ignore
 
   release:
     permissions:
@@ -116,6 +135,30 @@ jobs:
           pattern: "*-vsix"
           path: vsix-artifacts
           merge-multiple: true
+
+      - name: Build summary (which targets produced a .vsix)
+        shell: bash
+        run: |
+          {
+            echo "## Release build summary"
+            echo ""
+            echo "| Target | .vsix |"
+            echo "|---|---|"
+            produced=0; missing=0
+            for t in \
+              "win32-x64" "win32-arm64" \
+              "linux-x64" \
+              "alpine-x64" \
+              "darwin-x64" "darwin-arm64"; do
+              if ls vsix-artifacts/continue-*-"$t"*.vsix >/dev/null 2>&1; then
+                echo "| $t | yes |"; produced=$((produced+1));
+              else
+                echo "| $t | MISSING |"; missing=$((missing+1));
+              fi
+            done
+            echo ""
+            echo "Produced: $produced  Missing: $missing"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Release
         uses: softprops/action-gh-release@v2

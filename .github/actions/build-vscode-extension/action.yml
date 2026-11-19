@@ -21,6 +21,14 @@ inputs:
   github-token:
     description: 'GitHub token for downloading ripgrep'
     required: true
+  enable-retry:
+    description: >
+      When 'true', retry the extension dependency install a bounded number of
+      times to recover transient native-binary (ripgrep/sqlite) download
+      failures. Default 'false': behaviour is identical to the original
+      single-shot install step. Opt-in only.
+    required: false
+    default: 'false'
 outputs:
   target:
     description: 'The target string used for the build'
@@ -80,12 +88,31 @@ runs:
       run: node ./scripts/build-packages.js
 
     - name: Install extension dependencies
+      if: inputs.enable-retry != 'true'
       shell: bash
       run: |
         cd extensions/vscode
         npm ci
       env:
         # https://github.com/microsoft/vscode-ripgrep/issues/9#issuecomment-643965333
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+
+    - name: Install extension dependencies (retry)
+      if: inputs.enable-retry == 'true'
+      shell: bash
+      run: |
+        cd extensions/vscode
+        n=0
+        until npm ci; do
+          n=$((n+1))
+          if [ "$n" -ge 3 ]; then
+            echo "Install failed 3 times, giving up."
+            exit 1
+          fi
+          echo "Install attempt $n failed. Retrying in 10s..."
+          sleep 10
+        done
+      env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
 
     - name: Install gui dependencies
@@ -110,6 +137,7 @@ runs:
         NODE_OPTIONS: "--max-old-space-size=4096"
 
     - name: Prepackage the extension
+      if: inputs.enable-retry != 'true'
       shell: bash
       env:
         CONTINUE_VSCODE_TARGET: ${{ steps.set-target.outputs.target }}
@@ -117,6 +145,25 @@ runs:
         cd extensions/vscode
         export CONTINUE_VSCODE_TARGET="${{ steps.set-target.outputs.target }}"
         npm run prepackage -- --target ${{ steps.set-target.outputs.target }}
+
+    - name: Prepackage the extension (retry)
+      if: inputs.enable-retry == 'true'
+      shell: bash
+      env:
+        CONTINUE_VSCODE_TARGET: ${{ steps.set-target.outputs.target }}
+      run: |
+        cd extensions/vscode
+        export CONTINUE_VSCODE_TARGET="${{ steps.set-target.outputs.target }}"
+        n=0
+        until npm run prepackage -- --target ${{ steps.set-target.outputs.target }}; do
+          n=$((n+1))
+          if [ "$n" -ge 3 ]; then
+            echo "Prepackage failed 3 times, giving up."
+            exit 1
+          fi
+          echo "Prepackage attempt $n failed. Retrying in 10s..."
+          sleep 10
+        done
 
     - name: Re-install esbuild
       shell: bash
