@@ -144,6 +144,25 @@ export function Chat() {
     [history],
   );
 
+  // Added by this fork: membership lookups for the window feedback, built ONCE
+  // per windowState change instead of a per-message Array.includes() scan.
+  // windowState.{pinned,included,known}Ids hold an anchor key per turn, so the
+  // per-item getWindowVisualStyle below ran O(N) .includes() per rendered item ->
+  // O(N^2) over the whole transcript (tens of millions of string compares for a
+  // large incremental conversation). That froze the webview on reload of a long
+  // session ("window not responding" loop, gray screen). Set.has() is O(1), so
+  // building three sets once turns the whole thing back into O(N).
+  const windowKeySets = useMemo(() => {
+    if (contextTokenMode !== "incremental" || !windowState) {
+      return null;
+    }
+    return {
+      pinned: new Set(windowState.pinnedIds ?? []),
+      included: new Set(windowState.includedIds ?? []),
+      known: new Set(windowState.knownIds ?? []),
+    };
+  }, [contextTokenMode, windowState]);
+
   const lastSessionId = useAppSelector((state) => state.session.lastSessionId);
   const hasDismissedExploreDialog = useAppSelector(
     (state) => state.ui.hasDismissedExploreDialog,
@@ -413,14 +432,14 @@ export function Chat() {
   // fall outside includedIds and would otherwise render identical to pruned ones.
   const getWindowVisualStyle = useCallback(
     (item: ChatHistoryItemWithMessageId, index: number): CSSProperties => {
-      if (contextTokenMode !== "incremental" || !windowState) {
+      if (!windowKeySets) {
         return {};
       }
       const key = getAnchorKey(item.message);
       if (key === undefined) {
         return {};
       }
-      if (windowState.pinnedIds.includes(key)) {
+      if (windowKeySets.pinned.has(key)) {
         return {
           borderLeft: "4px solid #eab308", // yellow-500
           background: "rgba(234, 179, 8, 0.10)",
@@ -433,10 +452,7 @@ export function Chat() {
           opacity: 0.6,
         };
       }
-      if (
-        windowState.knownIds?.includes(key) &&
-        !windowState.includedIds.includes(key)
-      ) {
+      if (windowKeySets.known.has(key) && !windowKeySets.included.has(key)) {
         return {
           borderLeft: "4px solid #f43f5e", // rose-500
           background: "rgba(244, 63, 94, 0.10)",
@@ -445,7 +461,7 @@ export function Chat() {
       }
       return {};
     },
-    [contextTokenMode, windowState, latestSummaryIndex],
+    [windowKeySets, latestSummaryIndex],
   );
 
   const showScrollbar = showChatScrollbar ?? window.innerHeight > 5000;
