@@ -87,10 +87,14 @@ jobs:
             platform: alpine
             arch: x64
             npm_config_arch: x64
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-            npm_config_arch: x64
+          # darwin-x64 DISABLED: same @vscode/ripgrep fallback failure as the other
+          # non-buildable targets (the pre-built rg download does not succeed for
+          # this target here). Kept disabled to avoid burning macOS runner minutes
+          # on a build that cannot succeed. darwin-arm64 (Apple Silicon) DOES build.
+          # - os: macos-latest
+          #   platform: darwin
+          #   arch: x64
+          #   npm_config_arch: x64
           - os: macos-latest
             platform: darwin
             arch: arm64

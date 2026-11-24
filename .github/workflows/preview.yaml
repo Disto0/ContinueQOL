@@ -83,10 +83,14 @@ jobs:
             platform: alpine
             arch: x64
             npm_config_arch: x64
-          - os: macos-latest
-            platform: darwin
-            arch: x64
-            npm_config_arch: x64
+          # darwin-x64 DISABLED: same @vscode/ripgrep fallback failure as the other
+          # non-buildable targets (the pre-built rg download does not succeed for
+          # this target here). Kept disabled to avoid burning macOS runner minutes
+          # on a build that cannot succeed. darwin-arm64 (Apple Silicon) DOES build.
+          # - os: macos-latest
+          #   platform: darwin
+          #   arch: x64
+          #   npm_config_arch: x64
           - os: macos-latest
             platform: darwin
             arch: arm64
@@ -188,7 +192,7 @@ jobs:
               "win32-x64" \
               "linux-x64" \
               "alpine-x64" \
-              "darwin-x64" "darwin-arm64"; do
+              "darwin-arm64"; do
               # Each uploaded artifact was named "<target>-vsix"; download-artifact
               # (unmerged) recreates that as a folder. A target only uploaded a
               # folder when its build produced a .vsix, so folder presence is the
